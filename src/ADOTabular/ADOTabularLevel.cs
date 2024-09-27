@@ -1,12 +1,12 @@
-﻿using System;
+﻿using ADOTabular.Interfaces;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using Microsoft.AnalysisServices.Tabular;
 
 namespace ADOTabular
 {
-    
-    public class ADOTabularLevel: IADOTabularObject
+
+    public class ADOTabularLevel: IADOTabularObject, IADOTabularColumn
     {
         
 
@@ -15,18 +15,44 @@ namespace ADOTabular
             Column = column;
         }
 
-        public ADOTabularColumn Column {get; private set;}
+        public ADOTabularColumn Column {get; }
 
         public string LevelName { get; set; }
         private string _caption;
         public string Caption { 
-            get {return string.IsNullOrEmpty(_caption) ? LevelName : _caption;} 
-            set { _caption = value; } 
+            get => string.IsNullOrEmpty(_caption) ? LevelName : _caption;
+            set => _caption = value;
+        }
+        public string Name => Column.Name;
+        public string DaxName => Column.DaxName;
+        public ADOTabularObjectType ObjectType => Column.ObjectType;
+        public bool IsVisible => true;
+        public string Description => Column.Description;
+
+        public string MinValue => Column.MinValue;
+
+        public string MaxValue => Column.MaxValue;
+
+        public long DistinctValues => Column.DistinctValues;
+
+        public Type SystemType => Column.SystemType;
+
+        public Microsoft.AnalysisServices.Tabular.DataType DataType => Column.DataType;
+
+        public MetadataImages MetadataImage => Column.MetadataImage;
+
+        public string MeasureExpression => string.Empty;
+
+        public string TableName => Column.TableName;
+
+        public void UpdateBasicStats(ADOTabularConnection connection)
+        {
+            Column.UpdateBasicStats(connection);
         }
 
-        public string DaxName
+        public List<string> GetSampleData(ADOTabularConnection connection, int sampleSize)
         {
-            get { return Column.DaxName; }
+            return Column.GetSampleData(connection, sampleSize);
         }
     }
 }

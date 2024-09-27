@@ -1,4 +1,5 @@
-﻿using ADOTabular.AdomdClientWrappers;
+﻿
+using ADOTabular.Enums;
 using DaxStudio.Interfaces;
 using DaxStudio.QueryTrace.Interfaces;
 using Microsoft.AspNet.SignalR.Client;
@@ -18,7 +19,7 @@ namespace DaxStudio.QueryTrace
         QueryTraceStatus _status = QueryTraceStatus.Stopped;
         private readonly List<DaxStudioTraceEventClass> _eventsToCapture;
         private readonly string _powerBIFileName = string.Empty;
-        public RemoteQueryTraceEngine(string connectionString, ADOTabular.AdomdClientWrappers.AdomdType connectionType, string sessionId, List<DaxStudioTraceEventClass> events, int port, IGlobalOptions globalOptions, bool filterForCurrentSession, string powerBIFileName)
+        public RemoteQueryTraceEngine(IConnectionManager connectionManager, List<DaxStudioTraceEventClass> events, int port, IGlobalOptions globalOptions, bool filterForCurrentSession, string powerBIFileName)
         {
             Log.Debug("{{class} {method} {message}","RemoteQueryTraceEngine","constructor", "entered");
             // connect to hub
@@ -35,17 +36,22 @@ namespace DaxStudio.QueryTrace
             queryTraceHubProxy.On("OnTraceStarted", () => {OnTraceStarted();});
             queryTraceHubProxy.On("OnTraceComplete", (e) => { OnTraceComplete(e); });
             queryTraceHubProxy.On<string>("OnTraceError", (msg) => { OnTraceError(msg); });
+            queryTraceHubProxy.On<string>("OnTraceWarning", (msg) => { OnTraceWarning(msg); });
             hubConnection.Start().Wait();
             // configure trace
-            Log.Debug("{class} {method} {message} connectionType: {connectionType} sessionId: {sessionId} eventCount: {eventCount}", "RemoteQueryTraceEngine", "<constructor>", "about to create remote engine", connectionType.ToString(), sessionId, events.Count);
-            queryTraceHubProxy.Invoke("ConstructQueryTraceEngine", connectionType, sessionId, events, filterForCurrentSession,_powerBIFileName).Wait();
+            Log.Debug("{class} {method} {message} connectionType: {connectionType} sessionId: {sessionId} eventCount: {eventCount}", "RemoteQueryTraceEngine", "<constructor>", "about to create remote engine", connectionManager.Type.ToString(), connectionManager.SessionId, events.Count);
+            queryTraceHubProxy.Invoke("ConstructQueryTraceEngine", connectionManager.Type, connectionManager.SessionId, events, filterForCurrentSession,_powerBIFileName).Wait();
             // wire up hub events
 
         }
-        public async Task StartAsync()
+
+        public int TraceStartTimeoutSecs { get; private set; }
+        public async Task StartAsync(int startTimeoutSecs)
         {
+
             Log.Debug("{class} {method} {message}", "RemoteQueryTraceEngine", "StartAsync", "entered");
-            await queryTraceHubProxy.Invoke("StartAsync");
+            TraceStartTimeoutSecs = startTimeoutSecs;
+            await queryTraceHubProxy.Invoke("StartAsync", startTimeoutSecs);
         }
 
         public void Stop()
@@ -67,6 +73,14 @@ namespace DaxStudio.QueryTrace
             }
         }
 
+        public void OnTraceWarning(string errorMessage)
+        {
+            if (TraceWarning != null)
+            {
+                TraceWarning(this, errorMessage);
+            }
+        }
+
         public void OnTraceComplete(DaxStudioTraceEventArgs[] capturedEvents)
         {
             if (TraceCompleted != null)
@@ -78,9 +92,8 @@ namespace DaxStudio.QueryTrace
         {            
             // HACK: not sure why we have to explicitly cast the argument from a JArray, I thought Signalr should do this for us
             var e = myArray.ToObject<DaxStudioTraceEventArgs[]>();
-            
-            if (TraceCompleted != null)
-            { TraceCompleted(this, e); }
+
+            TraceCompleted?.Invoke(this, e);
         }
 
         public void OnTraceCompleted(IList<DaxStudioTraceEventArgs> capturedEvents) { 
@@ -88,14 +101,14 @@ namespace DaxStudio.QueryTrace
             { TraceCompleted(this, capturedEvents); }
         }
 
-        public List<DaxStudioTraceEventClass> Events { get { return _eventsToCapture; } }
-        
+        public List<DaxStudioTraceEventClass> Events => _eventsToCapture;
+
         public event EventHandler<IList<DaxStudioTraceEventArgs>> TraceCompleted;
 
         public event EventHandler TraceStarted;
 
         public event EventHandler<string> TraceError;
-
+        public event EventHandler<string> TraceWarning;
         public QueryTraceStatus Status
         {
             get
@@ -113,6 +126,12 @@ namespace DaxStudio.QueryTrace
         public void Dispose()
         {
             queryTraceHubProxy.Invoke("Dispose");
+        }
+
+        public void Update(string databaseName, string sessionId)
+        {
+            // we don't use the databaseName in the Remote query trace engine  (PowerPivot)
+            Update();
         }
     }
 }

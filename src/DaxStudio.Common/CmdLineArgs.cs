@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -94,6 +93,54 @@ namespace DaxStudio.Common
                 if (_app.Properties.Contains(AppProperties.CrashTest))
                     _app.Properties[AppProperties.CrashTest] = value;
                 _app.Properties.Add(AppProperties.CrashTest, value);
+            }
+        }
+
+        public string Server
+        {
+            get
+            {
+                if (_app.Properties.Contains(AppProperties.Server))
+                    return (string)_app.Properties[AppProperties.Server];
+                return string.Empty;
+            }
+            set
+            {
+                if (_app.Properties.Contains(AppProperties.Server))
+                    _app.Properties[AppProperties.Server] = value;
+                _app.Properties.Add(AppProperties.Server, value);
+            }
+        }
+        public string Database
+        {
+            get
+            {
+                if (_app.Properties.Contains(AppProperties.Database))
+                    return (string)_app.Properties[AppProperties.Database];
+                return string.Empty;
+            }
+            set
+            {
+                if (_app.Properties.Contains(AppProperties.Database))
+                    _app.Properties[AppProperties.Database] = value;
+                _app.Properties.Add(AppProperties.Database, value);
+            }
+        }
+
+
+        public bool ShowHelp
+        {
+            get
+            {
+                if (_app.Properties.Contains(AppProperties.ShowHelp))
+                    return (bool)_app.Properties[AppProperties.ShowHelp];
+                return false;
+            }
+            set
+            {
+                if (_app.Properties.Contains(AppProperties.ShowHelp))
+                    _app.Properties[AppProperties.ShowHelp] = value;
+                _app.Properties.Add(AppProperties.ShowHelp, value);
             }
         }
     }

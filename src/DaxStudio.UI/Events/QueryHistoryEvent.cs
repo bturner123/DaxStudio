@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using DaxStudio.Interfaces;
-using DaxStudio.UI.Model;
 using Newtonsoft.Json;
 
 namespace DaxStudio.UI.Events
@@ -16,17 +12,20 @@ namespace DaxStudio.UI.Events
 
         [JsonConstructor]
         public QueryHistoryEvent( string queryText
-        , DateTime startTime
-        , long clientDurationMs 
-        , long serverDurationMs
-        , long seDurationMs 
-        , long feDurationMs 
-        , string serverName 
-        , string databaseName 
-        , string fileName)
+            , string parameters
+            , DateTime startTime
+            , long clientDurationMs 
+            , long serverDurationMs
+            , long seDurationMs 
+            , long feDurationMs 
+            , string serverName 
+            , string databaseName 
+            , string fileName
+            , string queryBuilderJson)
         {
             QueryText = queryText.Trim();
-            QueryTextLines = QueryText.Split('\n').Count();
+            Parameters = parameters;
+            QueryTextLines = queryText.Split('\n').Count();
             StartTime = startTime;
             ClientDurationMs = clientDurationMs;
             ServerDurationMs = serverDurationMs;
@@ -35,15 +34,31 @@ namespace DaxStudio.UI.Events
             ServerName = serverName.Trim().ToLower();
             DatabaseName = databaseName.Trim();
             FileName = fileName;
+            QueryBuilderJson = queryBuilderJson;
+
         }
 
-        public QueryHistoryEvent( string queryText
-        , DateTime startTime
-        , string serverName 
-        , string databaseName 
-        , string fileName): this(queryText,startTime,-1,-1,-1,-1,serverName,databaseName,fileName )
+        public QueryHistoryEvent(
+            string json
+            , string queryText
+            , string parameters
+            , DateTime startTime
+            , string serverName 
+            , string databaseName 
+            , string fileName): this(queryText, parameters,startTime,-1,-1,-1,-1,serverName,databaseName,fileName ,json)
         {   }
 
+        public QueryHistoryEvent(
+              string queryText
+            , string parameters
+            , DateTime startTime
+            , string serverName
+            , string databaseName
+            , string fileName) : this(queryText, parameters, startTime, -1, -1, -1, -1, serverName, databaseName, fileName, string.Empty)
+        { }
+
+        public string QueryBuilderJson { get; }
+        public string Parameters { get; }
         public string QueryText { get; private set; }
         public DateTime StartTime { get; private set; }
         public long ClientDurationMs { get; set; }
@@ -58,6 +73,8 @@ namespace DaxStudio.UI.Events
         public QueryStatus Status { get; set; }
         [JsonIgnore]
         public double QueryTextLines { get; private set; }
+
+        [JsonIgnore]
         public double QueryTextHeight {
             get { 
                 if (QueryTextLines > 3) {
@@ -69,6 +86,12 @@ namespace DaxStudio.UI.Events
                 }
             }
         }
+
+        [JsonIgnore]
+        public string TypeIcon => string.IsNullOrEmpty(QueryBuilderJson) ? "Edit" : "Wrench" ;
+
+        [JsonIgnore]
+        public string TypeTooltip => string.IsNullOrEmpty(QueryBuilderJson) ? "Query Text" : "Query Builder Query";
 
     }
 }

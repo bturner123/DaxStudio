@@ -1,5 +1,6 @@
 ﻿
 using DaxStudio.Interfaces;
+using System;
 using System.Threading.Tasks;
 
 namespace DaxStudio.UI.Interfaces
@@ -9,12 +10,15 @@ namespace DaxStudio.UI.Interfaces
         string Name { get; }
         string Group { get; }
         //void OutputResults(IQueryRunner runner );
-        Task OutputResultsAsync(IQueryRunner runner);
+        Task OutputResultsAsync(IQueryRunner runner, IQueryTextProvider provider);
         bool IsDefault { get; }
+        bool IsAvailable { get; }
         bool IsEnabled { get; }
+        string DisabledReason { get; }
         int DisplayOrder { get; }
 
         string Message { get; }
-        OutputTargets Icon { get; }
+        OutputTarget Icon { get; }
+        string Tooltip { get; }
     }
 }

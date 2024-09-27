@@ -7,7 +7,7 @@ using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Media;
 
-namespace DaxStudio.Checker
+namespace DaxStudio.CheckerApp
 {
     public static class TextBoxExtensions
     {
@@ -31,14 +31,14 @@ namespace DaxStudio.Checker
             myOutput.AppendRange(text + "\r").Color(colour);
         }
 
-        public static void AppendIndentedLine(this System.Windows.Controls.RichTextBox myOutput, string text)
+        public static TextRange AppendIndentedLine(this System.Windows.Controls.RichTextBox myOutput, string text)
         {
-            myOutput.AppendIndentedLine(text, "Black");
+            return myOutput.AppendIndentedLine(text, "Black");
         }
 
-        public static void AppendIndentedLine(this System.Windows.Controls.RichTextBox myOutput, string text, string colour)
+        public static TextRange AppendIndentedLine(this System.Windows.Controls.RichTextBox myOutput, string text, string colour)
         {
-            myOutput.AppendRange(INDENT + text + "\r\n").Color(colour);
+            return myOutput.AppendRange(INDENT + text + "\r\n").Color(colour);
         }
 
         //public static TextRange Indent(this System.Windows.Controls.RichTextBox myOutput)
@@ -55,8 +55,9 @@ namespace DaxStudio.Checker
         {
             myOutput.AppendLine();
             myOutput.AppendRange(text +"\n").Bold().Size("14pt");
+            myOutput.AppendLine("=======================");
             //var inline = new Run();
-            
+
             //myOutput.Document.Blocks.Add( new Paragraph( new Bold( new Underline( new Run( text + "\r")))));
         }
 

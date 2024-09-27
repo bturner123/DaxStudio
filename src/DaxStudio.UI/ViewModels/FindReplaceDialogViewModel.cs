@@ -1,15 +1,15 @@
 ﻿using Caliburn.Micro;
 using ICSharpCode.AvalonEdit.Document;
-using DAXEditor;
+using DAXEditorControl;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Media;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using DaxStudio.UI.Views;
 using DaxStudio.UI.Extensions;
+using Serilog;
+using DaxStudio.UI.Events;
+using DaxStudio.Common;
 
 namespace DaxStudio.UI.ViewModels
 {
@@ -26,16 +26,17 @@ namespace DaxStudio.UI.ViewModels
 
         private static string _textToFind = "";
         private static string _textToReplace = "";
-        private static bool _caseSensitive = false;
-        private static bool _useRegex = false;
-        private static bool _useWildcards = false;
-        private static bool _searchUp = false;
+        private static bool _caseSensitive;
+        private static bool _useRegex;
+        private static bool _useWildcards;
+        private static bool _searchUp;
         private static bool _useWholeWord;
-        private IEditor editor;
+        private readonly IEventAggregator _eventAggregator;
 
-        public FindReplaceDialogViewModel(IEditor editor)
-        {            
-            this.editor = editor;
+        public FindReplaceDialogViewModel(IEventAggregator eventAggregator)
+        {
+            _eventAggregator = eventAggregator;
+            //this.editor = editor;
             //_searchDirections = new List<string>();
             //_searchDirections.Add("Next");
             //_searchDirections.Add("Prev");
@@ -48,10 +49,10 @@ namespace DaxStudio.UI.ViewModels
             get
             {
                 return Enum.GetValues(typeof(SearchDirection))
-                    .Cast<SearchDirection>(); ;
+                    .Cast<SearchDirection>(); 
             }
         }
-        public IEditor Editor { get { return editor; } set { editor = value; } }
+        public IEditor Editor { get; set; }
 
         // TODO add tab index
         public bool SearchUp
@@ -65,7 +66,7 @@ namespace DaxStudio.UI.ViewModels
 
         public bool UseWildcards
         {
-            get { return _useWildcards; }
+            get => _useWildcards;
             set
             {
                 _useWildcards = value;
@@ -75,7 +76,7 @@ namespace DaxStudio.UI.ViewModels
 
         public string TextToFind
         {
-            get { return _textToFind; }
+            get => _textToFind;
             set
             {
                 _textToFind = value;
@@ -86,7 +87,7 @@ namespace DaxStudio.UI.ViewModels
 
         public string TextToReplace
         {
-            get { return _textToReplace; }
+            get => _textToReplace;
             set
             {
                 _textToReplace = value;
@@ -96,7 +97,7 @@ namespace DaxStudio.UI.ViewModels
             }
         }
 
-        public bool CaseSensitive { get {return _caseSensitive;}
+        public bool CaseSensitive { get => _caseSensitive;
             set
             {
                 _caseSensitive = value;
@@ -104,13 +105,13 @@ namespace DaxStudio.UI.ViewModels
             }
         }
 
-        public bool UseRegex { get {return _useRegex;}
+        public bool UseRegex { get => _useRegex;
             set { _useRegex = value;
             NotifyOfPropertyChange(() => UseRegex);
             }
         }
 
-        public bool UseWholeWord { get {return _useWholeWord;}
+        public bool UseWholeWord { get => _useWholeWord;
             set
             {
                 _useWholeWord = value;
@@ -118,21 +119,28 @@ namespace DaxStudio.UI.ViewModels
             } 
         }
 
-        public bool CanFind { get { return !string.IsNullOrEmpty(TextToFind); } }
-        public bool CanReplace { get { return !string.IsNullOrEmpty(TextToReplace); } }
-        public bool CanReplaceAll { get { return !string.IsNullOrEmpty(TextToReplace); } }
+        public bool CanFind => !string.IsNullOrEmpty(TextToFind);
+        public bool CanReplace => !string.IsNullOrEmpty(TextToReplace);
+        public bool CanReplaceAll => !string.IsNullOrEmpty(TextToReplace);
 
         private bool _isVisible;
         public bool IsVisible
         {
-            get { return _isVisible; }
+            get => _isVisible;
             set {
-                _isVisible = value;
-                NotifyOfPropertyChange(() => IsVisible);
-                if (value == true)
+                try
                 {
-                    //FocusOnFindBox();
-                    this.SetFocus(() => TextToFind);
+                    _isVisible = value;
+                    NotifyOfPropertyChange(() => IsVisible);
+                    if (value)
+                    {
+                        //FocusOnFindBox();
+                        this.SetFocus(() => TextToFind);
+                    }
+                }
+                catch(Exception ex)
+                {
+                    Log.Error(ex, Constants.LogMessageTemplate, nameof(FindReplaceDialogViewModel), nameof(IsVisible), $"Error setting IsVisible: {ex.Message}");
                 }
             }
         }
@@ -144,9 +152,11 @@ namespace DaxStudio.UI.ViewModels
         //}
 
         private bool _showReplace;
+        
+
         public bool ShowReplace
         {
-            get { return _showReplace; }
+            get => _showReplace;
             set { _showReplace = value;
                 NotifyOfPropertyChange(() => ShowReplace);
             }
@@ -163,13 +173,21 @@ namespace DaxStudio.UI.ViewModels
         
         public void FindText()
         {
-            if (editor == null || string.IsNullOrEmpty( TextToFind))
+            try
             {
-                SystemSounds.Beep.Play();
-                return;
+                if (Editor == null || string.IsNullOrEmpty(TextToFind))
+                {
+                    SystemSounds.Beep.Play();
+                    return;
+                }
+                if (!FindNextInternal())
+                    SystemSounds.Beep.Play();
             }
-            if (!FindNextInternal())
-                SystemSounds.Beep.Play();
+            catch (Exception ex)
+            {
+                Log.Error(ex, Constants.LogMessageTemplate, "FindReplaceDialogViewModel", "FindText", ex.Message);
+                _eventAggregator.PublishOnUIThread(new OutputMessage(MessageType.Error, $"Error trying to find text: ${ex.Message}"));
+            }
         }
 
         public void FindNext()
@@ -192,34 +210,50 @@ namespace DaxStudio.UI.ViewModels
         
         public void ReplaceText()
         {
-            Regex regex = GetRegEx(TextToFind);
-            string input = editor.Text.Substring(editor.SelectionStart, editor.SelectionLength);
-            Match match = regex.Match(input);
-            bool replaced = false;
-            if (match.Success && match.Index == 0 && match.Length == input.Length)
+            try
             {
-                editor.DocumentReplace(editor.SelectionStart, editor.SelectionLength, TextToReplace);
-                replaced = true;
-            }
+                Regex regex = GetRegEx(TextToFind);
+                string input = Editor.Text.Substring(Editor.SelectionStart, Editor.SelectionLength);
+                Match match = regex.Match(input);
+                bool replaced = false;
+                if (match.Success && match.Index == 0 && match.Length == input.Length)
+                {
+                    Editor.DocumentReplace(Editor.SelectionStart, Editor.SelectionLength, TextToReplace);
+                    replaced = true;
+                }
 
-            if (!FindNextInternal() && !replaced)
-                SystemSounds.Beep.Play();
+                if (!FindNextInternal() && !replaced)
+                    SystemSounds.Beep.Play();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex,Constants.LogMessageTemplate,"FindReplaceDialogViewModel","ReplaceText",ex.Message);
+                _eventAggregator.PublishOnUIThread(new OutputMessage(MessageType.Error, $"Error trying to replace text: ${ex.Message}"));
+            }
         }
 
         public void ReplaceAllText()
         {
-            
-            Regex regex = GetRegEx(TextToFind, true);
-            int offset = 0;
-            editor.BeginChange();
-            // TODO  if selectionlength > 0 replace only in selection
-            foreach (Match match in regex.Matches(editor.Text))
+            try
             {
-                editor.DocumentReplace(offset + match.Index, match.Length, TextToReplace);
-                offset += TextToReplace.Length - match.Length;
+                Regex regex = GetRegEx(TextToFind, true);
+                int offset = 0;
+                Editor.BeginChange();
+                // TODO  if selectionlength > 0 replace only in selection
+                foreach (Match match in regex.Matches(Editor.Text))
+                {
+                    Editor.DocumentReplace(offset + match.Index, match.Length, TextToReplace);
+                    offset += TextToReplace.Length - match.Length;
+                }
+
+                Editor.EndChange();
             }
-            editor.EndChange();
-            
+            catch (Exception ex)
+            {
+                Log.Error(ex, Common.Constants.LogMessageTemplate, nameof(FindReplaceDialogViewModel), nameof(ReplaceAllText), ex.Message);
+                _eventAggregator.PublishOnUIThread(new OutputMessage(MessageType.Error, $"Error Replacing All Text: {ex.Message}" ));
+            }
+
         }
 
         private bool FindNextInternal()
@@ -228,22 +262,22 @@ namespace DaxStudio.UI.ViewModels
 
             Regex regex = GetRegEx(TextToFind);
             int start = regex.Options.HasFlag(RegexOptions.RightToLeft) ? 
-            editor.SelectionStart : editor.SelectionStart + editor.SelectionLength;
-            Match match = regex.Match(editor.Text, start);
+            Editor.SelectionStart : Editor.SelectionStart + Editor.SelectionLength;
+            Match match = regex.Match(Editor.Text, start);
 
             if (!match.Success)  // start again from beginning or end
             {
                 if (regex.Options.HasFlag(RegexOptions.RightToLeft))
-                    match = regex.Match(editor.Text, editor.Text.Length);
+                    match = regex.Match(Editor.Text, Editor.Text.Length);
                 else
-                    match = regex.Match(editor.Text, 0);
+                    match = regex.Match(Editor.Text, 0);
             }
 
             if (match.Success)
             {
-                editor.Select(match.Index, match.Length);
-                TextLocation loc = editor.DocumentGetLocation(match.Index);
-                editor.ScrollTo(loc.Line, loc.Column);
+                Editor.Select(match.Index, match.Length);
+                TextLocation loc = Editor.DocumentGetLocation(match.Index);
+                Editor.ScrollTo(loc.Line, loc.Column);
             }
 
             return match.Success;
@@ -264,8 +298,10 @@ namespace DaxStudio.UI.ViewModels
             else
             {
                 string pattern = Regex.Escape(textToFind);
-                if (UseWildcards)
+                if (UseWildcards && !UseWholeWord)
                     pattern = pattern.Replace("\\*", ".*").Replace("\\?", ".");
+                if (UseWildcards && UseWholeWord)
+                    pattern = pattern.Replace("\\*", "[^\\s]*").Replace("\\?", ".");
                 if (UseWholeWord)
                     pattern = "\\b" + pattern + "\\b";
                 return new Regex(pattern, options);

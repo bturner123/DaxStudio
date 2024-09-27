@@ -1,14 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace DaxStudio.UI.Utils.DelimiterTranslator
-{
-
-    
+{   
 
     public abstract class StringStateMachine<T> where T : StringStateMachine<T>
     {
@@ -41,9 +36,9 @@ namespace DaxStudio.UI.Utils.DelimiterTranslator
             /// <summary>
             /// The Name of this state
             /// </summary>
-            public string Name { get; private set; }
+            public string Name { get; }
 
-            private readonly IDictionary<char, Func<T, State, string, int, State>> transitions = new Dictionary<char, Func<T, State, string, int, State>>();
+            private readonly IDictionary<char, Func<T, State, string, int, State>> _transitions = new Dictionary<char, Func<T, State, string, int, State>>();
 
             /// <summary>
             /// Create a new State with a name and an optional entry and exit action
@@ -54,11 +49,21 @@ namespace DaxStudio.UI.Utils.DelimiterTranslator
                 this.ProcessCharacter = processCharacter;
             }
 
-            public char currentChar;
+            public State(string name)
+            {
+                this.Name = name;
+                this.ProcessCharacter = (sm, str, pos) => {
+                    sm.EventHappens(str, pos);
+                    return str[pos];
+                };
+            }
+
+
+            public char CurrentChar;
             public State When(char @event, Func<T, State, string, int, State> action)
             {
-                transitions.Add(@event, action);
-                currentChar = @event;
+                _transitions.Add(@event, action);
+                CurrentChar = @event;
                 return this;
             }
 
@@ -68,7 +73,7 @@ namespace DaxStudio.UI.Utils.DelimiterTranslator
             {
                 Func<T, State, string, int, State> transition = null;
                 char c = input[pos];
-                if (transitions.TryGetValue(c, out transition))
+                if (_transitions.TryGetValue(c, out transition))
                 {
                     State newState = transition(parent, this, input, pos);
                     return newState;

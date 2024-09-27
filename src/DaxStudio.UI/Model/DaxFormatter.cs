@@ -8,10 +8,12 @@ using DaxStudio.UI.Utils;
 using Caliburn.Micro;
 using DaxStudio.Interfaces;
 using System.ComponentModel.Composition;
+using System.Linq.Expressions;
 using DaxStudio.UI.Extensions;
 
 using System.Security.Cryptography;
 using System.Text;
+using DaxStudio.UI.Events;
 
 namespace DaxStudio.UI.Model
 {
@@ -20,6 +22,8 @@ namespace DaxStudio.UI.Model
     {
         public static string SHA256(string input)
         {
+            if (input == null) return "";
+
             var hasher = new SHA256Managed();
             var sb = new StringBuilder();
 
@@ -35,44 +39,32 @@ namespace DaxStudio.UI.Model
 
     public class DaxFormatterError
     {
-        public int line;
-        public int column;
-        public string message;
+        public int line { get; set; }
+        public int column { get; set; }
+        public string message { get; set; }
     }
 
     public class ServerDatabaseInfo
     {
-        public string ServerName; // SHA-256 hash of server name
-        public string ServerEdition; // # Values: null, "Enterprise64", "Developer64", "Standard64"
-        public string ServerType; // Values: null, "SSAS", "PBI Desktop", "SSDT Workspace", "Tabular Editor"
-        public string ServerMode; // Values: null, "SharePoint", "Tabular"
-        public string ServerLocation; // Values: null, "OnPremise", "Azure"
-        public string ServerVersion; // Example: "14.0.800.192"
-        public string DatabaseName; // SHA-256 hash of database name
-        public string DatabaseCompatibilityLevel; // Values: 1200, 1400
+        public string ServerName { get; set; } // SHA-256 hash of server name
+        public string ServerEdition { get; set; } // # Values: null, "Enterprise64", "Developer64", "Standard64"
+        public string ServerType { get; set; } // Values: null, "SSAS", "PBI Desktop", "SSDT Workspace", "Tabular Editor"
+        public string ServerMode { get; set; } // Values: null, "SharePoint", "Tabular"
+        public string ServerLocation { get; set; } // Values: null, "OnPremise", "Azure"
+        public string ServerVersion { get; set; } // Example: "14.0.800.192"
+        public string DatabaseName { get; set; } // SHA-256 hash of database name
+        public string DatabaseCompatibilityLevel { get; set; } // Values: 1200, 1400
     }
 
-    public class DaxFormatterRequest
+    public class DaxFormatterRequest : ServerDatabaseInfo
     {
         public string Dax { get; set; }
+        public int? MaxLineLenght { get; set; }
+        public bool? SkipSpaceAfterFunctionName { get; set; }
         public char ListSeparator { get; set; }
         public char DecimalSeparator { get; set; }
         public string CallerApp { get; set; }
         public string CallerVersion { get; set; }
-
-        // TODO: complete server info
-
-        public string ServerName; // SHA-256 hash of server name
-        public string ServerEdition; // # Values: null, "Enterprise64", "Developer64", "Standard64"
-        public string ServerType; // Values: null, "SSAS", "PBI Desktop", "SSDT Workspace", "Tabular Editor"
-        public string ServerMode; // Values: null, "SharePoint", "Tabular"
-        public string ServerLocation; // Values: null, "OnPremise", "Azure"
-        public string ServerVersion; // Example: "14.0.800.192"
-        public string DatabaseName; // SHA-256 hash of database name
-        public string DatabaseCompatibilityLevel; // Values: 1200, 1400
-
-        // TODO: end complete server info
-
 
         public DaxFormatterRequest()
         {
@@ -98,8 +90,14 @@ namespace DaxStudio.UI.Model
     public class DaxFormatterProxy
     {
 
-        private static string redirectUrl = null;  // cache the redirected URL
-        private static string redirectHost = null;
+        static DaxFormatterProxy()
+        {
+            // force the use of TLS 1.2
+            System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls12;
+        }
+
+        private static string redirectUrl;  // cache the redirected URL
+        private static string redirectHost;
         //public static async Task FormatQuery(DocumentViewModel doc, DAXEditor.DAXEditor editor)
         //{
         //    Log.Debug("{class} {method} {event}", "DaxFormatter", "FormatQuery", "Start");
@@ -178,17 +176,17 @@ namespace DaxStudio.UI.Model
 
 
 
-        public static async Task<DaxFormatterResult> FormatDaxAsync(string query, ServerDatabaseInfo serverDbInfo, IGlobalOptions globalOptions, IEventAggregator eventAggregator)
+        public static async Task<DaxFormatterResult> FormatDaxAsync(string query, ServerDatabaseInfo serverDbInfo, IGlobalOptions globalOptions, IEventAggregator eventAggregator, bool formatAlternateStyle )
         {
             Log.Verbose("{class} {method} {query}", "DaxFormatter", "FormatDaxAsync:Begin", query);
-            string output = await CallDaxFormatterAsync(WebRequestFactory.DaxTextFormatUri, query, serverDbInfo, globalOptions, eventAggregator);
+            string output = await CallDaxFormatterAsync(WebRequestFactory.DaxTextFormatUri, query, serverDbInfo, globalOptions, eventAggregator, formatAlternateStyle);
             var res2 = new DaxFormatterResult();
             JsonConvert.PopulateObject(output, res2);
             Log.Debug("{class} {method} {event}", "DaxFormatter", "FormatDaxAsync", "End");
             return res2;
         }
         
-        private static async Task<string> CallDaxFormatterAsync(string uri, string query, ServerDatabaseInfo serverDbInfo, IGlobalOptions globalOptions, IEventAggregator eventAggregator)
+        private static async Task<string> CallDaxFormatterAsync(string uri, string query, ServerDatabaseInfo serverDbInfo, IGlobalOptions globalOptions, IEventAggregator eventAggregator, bool formatAlternateStyle )
         {
             Log.Verbose("{class} {method} {uri} {query}","DaxFormatter","CallDaxFormatterAsync:Begin",uri,query );
             try
@@ -196,7 +194,11 @@ namespace DaxStudio.UI.Model
 
                 DaxFormatterRequest req = new DaxFormatterRequest();
                 req.Dax = query;
-
+                if (globalOptions.DefaultSeparator == DaxStudio.Interfaces.Enums.DelimiterType.SemiColon)
+                {
+                    req.DecimalSeparator = ',';
+                    req.ListSeparator = ';';
+                }
                 req.ServerName = Crypto.SHA256( serverDbInfo.ServerName );
                 req.ServerEdition = serverDbInfo.ServerEdition;
                 req.ServerType = serverDbInfo.ServerType; 
@@ -205,6 +207,14 @@ namespace DaxStudio.UI.Model
                 req.ServerVersion = serverDbInfo.ServerVersion;
                 req.DatabaseName = Crypto.SHA256( serverDbInfo.DatabaseName );
                 req.DatabaseCompatibilityLevel = serverDbInfo.DatabaseCompatibilityLevel;
+                if ( (globalOptions.DefaultDaxFormatStyle == DaxStudio.Interfaces.Enums.DaxFormatStyle.ShortLine && !formatAlternateStyle)
+                    ||
+                     (globalOptions.DefaultDaxFormatStyle == DaxStudio.Interfaces.Enums.DaxFormatStyle.LongLine && formatAlternateStyle)
+                    )
+                {
+                    req.MaxLineLenght = 1;
+                }
+                req.SkipSpaceAfterFunctionName = globalOptions.SkipSpaceAfterFunctionName;
 
                 var data = JsonConvert.SerializeObject(req);
 
@@ -212,7 +222,7 @@ namespace DaxStudio.UI.Model
                 var data1 = enc.GetBytes(data);
 
                 // this should allow DaxFormatter to work through http 1.0 proxies
-                // see: http://stackoverflow.com/questions/566437/http-post-returns-the-error-417-expectation-failed-c
+                // see: https://stackoverflow.com/questions/566437/http-post-returns-the-error-417-expectation-failed-c
                 //System.Net.ServicePointManager.Expect100Continue = false;
 
                 
@@ -266,42 +276,58 @@ namespace DaxStudio.UI.Model
 
         public static async Task PrimeConnectionAsync(string uri, IGlobalOptions globalOptions, IEventAggregator eventAggregator)
         {
-            await Task.Run(async () =>
+            
+            Log.Debug("{class} {method} {event}", "DaxFormatter", "PrimeConnectionAsync", "Start");
+            try
             {
-                Log.Debug("{class} {method} {event}", "DaxFormatter", "PrimeConnectionAsync", "Start");
+                if (globalOptions.BlockExternalServices)
+                {
+                    Log.Debug(Common.Constants.LogMessageTemplate, nameof(DaxFormatterProxy), nameof(PrimeConnectionAsync), "Skipping Priming Connection to DaxFormatter.com as External Services are blocked in options");
+                    return;
+                }
+                
                 if (redirectHost == null)
                 {
-
-
                     // www.daxformatter.com redirects request to another site.  HttpWebRequest does redirect with GET.  It fails, since the web service works only with POST
                     // The following 2 requests are doing manual POST re-direct
                     //var webRequestFactory = IoC.Get<WebRequestFactory>();
-                    WebRequestFactory webRequestFactory = await WebRequestFactory.CreateAsync(globalOptions, eventAggregator);
-                    var redirectRequest =  webRequestFactory.Create(uri) as HttpWebRequest;
+                    WebRequestFactory webRequestFactory =
+                        await WebRequestFactory.CreateAsync(globalOptions, eventAggregator);
+                    var redirectRequest = webRequestFactory.Create(uri) as HttpWebRequest;
 
                     redirectRequest.AllowAutoRedirect = false;
                     redirectRequest.Timeout = globalOptions.DaxFormatterRequestTimeout.SecondsToMilliseconds();
                     try
                     {
-                        using (var netResponse = redirectRequest.GetResponse())
+                        using (var netResponse = await redirectRequest.GetResponseAsync())
                         {
-                            var redirectResponse = (HttpWebResponse)netResponse;
+                            var redirectResponse = (HttpWebResponse) netResponse;
                             redirectUrl = redirectResponse.Headers["Location"];
                             var redirectUri = new Uri(redirectUrl);
 
                             // set the shared redirectHost variable
                             redirectHost = redirectUri.Host;
-                            Log.Debug("{class} {method} Redirected to: {redirectUrl}", "DaxFormatter", "CallDaxFormatterAsync", uri.ToString());
+                            Log.Debug("{class} {method} Redirected to: {redirectUrl}", "DaxFormatter",
+                                "CallDaxFormatterAsync", uri.ToString());
                             System.Diagnostics.Debug.WriteLine("Host: " + redirectUri.Host);
                         }
                     }
                     catch (Exception ex)
                     {
-                        Log.Error("{class} {method} {error}", "DaxFormatter", "PrimeConnectionAsync", ex.Message);
+                        Log.Error("{class} {method} {error}", "DaxFormatter", "PrimeConnectionAsync",
+                            $"Error getting redirect response: {ex.Message}");
                     }
                 }
-                Log.Debug("{class} {method} {event}", "DaxFormatter", "PrimeConnectionAsync", "End");
-            });
+            }
+            catch (Exception ex1)
+            {
+                Log.Error("{class} {method} {error}", "DaxFormatter", "PrimeConnectionAsync",
+                    $"Error getting redirect location: {ex1.Message}");
+                await eventAggregator.PublishOnUIThreadAsync(new OutputMessage(MessageType.Warning,
+                    $"An error occurred while checking the connection to daxformatter.com\n\t{ex1.Message}"));
+            }
+
+            Log.Debug("{class} {method} {event}", "DaxFormatter", "PrimeConnectionAsync", "End");
 
         }
         public static async Task PrimeConnectionAsync(IGlobalOptions globalOptions, IEventAggregator eventAggregator)

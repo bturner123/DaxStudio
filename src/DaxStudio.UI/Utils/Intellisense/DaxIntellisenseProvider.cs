@@ -1,23 +1,25 @@
-﻿using ADOTabular;
-using Caliburn.Micro;
-using DAXEditor;
-using DaxStudio.UI.Events;
-using DaxStudio.UI.Utils.Intellisense;
-using DaxStudio.UI.ViewModels;
-using ICSharpCode.AvalonEdit.CodeCompletion;
-using ICSharpCode.AvalonEdit.Document;
-using ICSharpCode.AvalonEdit.Editing;
-using Serilog;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
+using System.Windows.Navigation;
+using ADOTabular;
+using Caliburn.Micro;
+using DAXEditorControl;
+using DaxStudio.Interfaces;
+using DaxStudio.UI.Events;
+using DaxStudio.UI.Interfaces;
+using ICSharpCode.AvalonEdit;
+using ICSharpCode.AvalonEdit.CodeCompletion;
+using ICSharpCode.AvalonEdit.Document;
+using ICSharpCode.AvalonEdit.Editing;
+using Serilog;
 
-namespace DaxStudio.UI.Utils
+namespace DaxStudio.UI.Utils.Intellisense
 {
     [Flags] public enum IntellisenseMetadataTypes
     {
@@ -27,7 +29,7 @@ namespace DaxStudio.UI.Utils
         Measures  = 8,
         Tables    = 16,
         DMV       = 32,
-        ALL       = Tables | Functions | Keywords  // columns and measures are only shown after a '[' char
+        All       = Tables | Functions | Keywords  // columns and measures are only shown after a '[' char
     }
 
     public class DaxIntellisenseProvider:
@@ -41,44 +43,84 @@ namespace DaxStudio.UI.Utils
     {
         private IEditor _editor;
         private DaxLineState _daxState;
-        private bool SpacePressed;
-        private bool HasThrownException;
+        private bool _spacePressed;
+        //private bool HasThrownException;
         private IEventAggregator _eventAggregator;
+        private readonly IGlobalOptions _options;
 
-        public DaxIntellisenseProvider (DocumentViewModel activeDocument, IEditor editor, IEventAggregator eventAggregator)
+        public DaxIntellisenseProvider (IDaxDocument activeDocument, IEventAggregator eventAggregator, IGlobalOptions options)
         {
             Document = activeDocument;
-            _editor = editor;
             _eventAggregator = eventAggregator;
-            _eventAggregator.Subscribe(this);
+            _options = options;
+        }
+
+        public DaxIntellisenseProvider(IDaxDocument activeDocument, IEventAggregator eventAggregator, IGlobalOptions options, ADOTabularModel model, ADOTabularDynamicManagementViewCollection dmvs, ADOTabularFunctionGroupCollection functions): this(activeDocument,eventAggregator, options)
+        {
+            Model = model;
+            FunctionGroups = functions;
+            DMVs = dmvs;
         }
 
         #region Properties
         public ADOTabularModel Model { get; private set; }
-
+        public IEditor Editor { get => _editor; set => _editor = value;
+        }
         #endregion
 
         #region Public IIntellisenseProvider Interface
-        public void ProcessTextEntered(object sender, System.Windows.Input.TextCompositionEventArgs e, ref ICSharpCode.AvalonEdit.CodeCompletion.CompletionWindow completionWindow)
+        public void ProcessTextEntered(object sender, TextCompositionEventArgs e, ref CompletionWindow completionWindow)
         {
-            if (HasThrownException) return; // exit here if intellisense has previous thrown and exception
+            System.Diagnostics.Debug.WriteLine($"ProcessTextEntered: {e.Text}");
+
+            //if (HasThrownException) return; // exit here if intellisense has previous thrown and exception
 
             try
             {
+
+                _daxState = ParseLine();
+
+                if (completionWindow != null
+                    && !string.IsNullOrWhiteSpace(e.Text)
+                    && completionWindow.StartOffset == completionWindow.EndOffset)
+                {
+                    Debug.WriteLine("Hack: Force dispose of completion window as StartOffset == EndOffset");
+                    CloseCompletionWindow();
+                    //completionWindow = null;
+                }
+                
                 if (completionWindow != null)
                 {
+                    Debug.WriteLine($"completionWindow != null visible:{completionWindow.IsVisible} height: {completionWindow.ActualHeight}");
                     // close the completion window if it has no items
-                    if (!completionWindow.CompletionList.ListBox.HasItems)
+                    if (!completionWindow.CompletionList.ListBox.HasItems || !completionWindow.IsVisible)
                     {
-                        completionWindow.Close();
+                        Debug.WriteLine("Completion Window has no items - Closing");
+                        CloseCompletionWindow();
+                        //completionWindow = null;
                         return;
                     }
-                    // close the completion window if the current text is a 100% match for the current item
-                    var txt = ((TextArea)sender).Document.GetText(new TextSegment() { StartOffset = completionWindow.StartOffset, EndOffset = completionWindow.EndOffset });
-                    var selectedItem = completionWindow.CompletionList.SelectedItem;
-                    if (string.Compare(selectedItem.Text, txt, true) == 0 || string.Compare(selectedItem.Content.ToString(), txt, true) == 0) completionWindow.Close();
+                    else
+                    {
 
-                    return;
+                        var document = ((TextArea)sender).Document;
+                        var startOffset = completionWindow.StartOffset;
+                        var endOffset = completionWindow.EndOffset;
+                        if (startOffset > document.TextLength) startOffset = document.TextLength;
+                        if (endOffset > document.TextLength) endOffset = document.TextLength;
+
+                        // close the completion window if the current text is a 100% match for the current item
+                        var txt = document.GetText(new TextSegment() { StartOffset = startOffset, EndOffset = endOffset });
+                        Debug.WriteLine($"processing: {txt} start: {startOffset}({completionWindow.StartOffset}) end: {endOffset }({completionWindow.EndOffset})");
+                        var selectedItem = completionWindow.CompletionList.SelectedItem;
+                        if (string.Compare(selectedItem.Text, txt, true) == 0 || string.Compare(selectedItem.Content.ToString(), txt, true) == 0)
+                        {
+                            CloseCompletionWindow();
+                            //completionWindow = null;
+                        }
+
+                        return;
+                    }
                 }
 
                 if (char.IsLetterOrDigit(e.Text[0]) || "\'[".Contains(e.Text[0]))
@@ -88,27 +130,22 @@ namespace DaxStudio.UI.Utils
                     if (completionWindow != null) return;
 
                     // exit if we are inside a string or comment
-                    _daxState = ParseLine();
+                    //_daxState = ParseLine();
                     var lineState = _daxState.LineState;
                     if (lineState == LineState.String || _editor.IsInComment()) return;
 
                     // don't show intellisense if we are in the measure name of a DEFINE block
                     if (DaxLineParser.IsLineMeasureDefinition(GetCurrentLine())) return;
 
-                    // TODO add insights window for Function parameters
-                    //InsightWindow insightWindow = new InsightWindow(sender as ICSharpCode.AvalonEdit.Editing.TextArea);
-                    
-                    completionWindow = new CompletionWindow(sender as ICSharpCode.AvalonEdit.Editing.TextArea);
-                    completionWindow.CloseAutomatically = false;
-                    
-                    completionWindow.CompletionList.BorderThickness = new System.Windows.Thickness(1);
+                    Debug.WriteLine("Constructing new CompletionWindow");
+                    completionWindow = CreateCompletionWindow(sender);
 
                     if (char.IsLetterOrDigit(e.Text[0]))
                     {
                         // if the window was opened by a letter or digit include it in the match segment
                         //completionWindow.StartOffset -= 1;
                         completionWindow.StartOffset = _daxState.StartOffset;
-                        System.Diagnostics.Debug.WriteLine("Setting Completion Offset: {0}", _daxState.StartOffset);
+                        Debug.WriteLine("Setting Completion Offset: {0}", _daxState.StartOffset);
                     }
 
                     IList<ICompletionData> data = completionWindow.CompletionList.CompletionData;
@@ -117,7 +154,7 @@ namespace DaxStudio.UI.Utils
                     {
                         case "[":
 
-                            string tableName = GetPreceedingTableName();
+                            string tableName = GetPrecedingTableName();
                             if (string.IsNullOrWhiteSpace(tableName))
                             {
                                 PopulateCompletionData(data, IntellisenseMetadataTypes.Measures);
@@ -130,6 +167,7 @@ namespace DaxStudio.UI.Utils
                         case "'":
                             PopulateCompletionData(data, IntellisenseMetadataTypes.Tables);
                             break;
+
                         default:
                             switch (_daxState.LineState)
                             {
@@ -137,7 +175,7 @@ namespace DaxStudio.UI.Utils
                                     PopulateCompletionData(data, IntellisenseMetadataTypes.Columns, _daxState);
                                     break;
                                 case LineState.Table:
-                                    PopulateCompletionData(data, IntellisenseMetadataTypes.Tables, _daxState );
+                                    PopulateCompletionData(data, IntellisenseMetadataTypes.Tables, _daxState);
                                     break;
                                 case LineState.Measure:
                                     PopulateCompletionData(data, IntellisenseMetadataTypes.Measures);
@@ -146,162 +184,342 @@ namespace DaxStudio.UI.Utils
                                     PopulateCompletionData(data, IntellisenseMetadataTypes.DMV);
                                     break;
                                 default:
-                                    PopulateCompletionData(data, IntellisenseMetadataTypes.ALL);
+                                    PopulateCompletionData(data, IntellisenseMetadataTypes.All);
                                     break;
                             }
                             break;
                     }
                     if (data.Count > 0)
                     {
-                        //var line = GetCurrentLine();
-                        //System.Diagnostics.Debug.Assert(line.Length >= _daxState.EndOffset);
+
                         var txt = _editor.DocumentGetText(new TextSegment() { StartOffset = _daxState.StartOffset, EndOffset = _daxState.EndOffset });
-                        //var txt = line.Substring(_daxState.StartOffset,_daxState.EndOffset - _daxState.StartOffset);
 
                         completionWindow.CompletionList.SelectItem(txt);
                         // only show the completion window if we have valid items to display
                         if (completionWindow.CompletionList.ListBox.HasItems)
                         {
-                            
+
                             Log.Verbose("InsightWindow == null : {IsNull}", _editor.InsightWindow == null);
                             if (_editor.InsightWindow != null && _editor.InsightWindow.IsVisible)
                             {
                                 Log.Verbose("hiding insight window");
                                 _editor.InsightWindow.Visibility = Visibility.Collapsed;
-                                //_editor.InsightWindow = null;
-                                
                             }
 
-                            Log.Verbose("CW null: {CompletionWindowNull} CW.Vis: {CompletionWindowVisible} IW null: {insightWindowNull} IW.Vis: {InsightWindowVisible}", completionWindow == null, completionWindow.Visibility.ToString() , _editor.InsightWindow == null, completionWindow.Visibility.ToString());
-                            
+                            Log.Verbose("CW null: {CompletionWindowNull} CW.Vis: {CompletionWindowVisible} IW null: {insightWindowNull} IW.Vis: {InsightWindowVisible}", completionWindow == null, completionWindow.Visibility.ToString(), _editor.InsightWindow == null, completionWindow.Visibility.ToString());
+
+
                             completionWindow.Show();
-                            completionWindow.Closing += completionWindow_Closing;
-                            completionWindow.PreviewKeyUp += completionWindow_PreviewKeyUp;
-                            completionWindow.Closed += delegate
-                            {
-                                _editor.DisposeCompletionWindow();
-                            };
                         }
                         else
                         {
-                            Log.Debug("{class} {method} {message}", "DaxIntellisenseProvider" , "ProcessTextEntered", "Closing CompletionWindow as it has no matching items");
-                            
-                            completionWindow.Close();
-                            _editor.DisposeCompletionWindow();
-                            completionWindow = null;
+                            Log.Debug("{class} {method} {message}", "DaxIntellisenseProvider", "ProcessTextEntered", "Closing CompletionWindow as it has no matching items");
+                            CloseCompletionWindow();
+                            //completionWindow = null;
                         }
                     }
                     else
                     {
-                        _editor.DisposeCompletionWindow();
-                        completionWindow = null;
+                        CloseCompletionWindow();
+                        //completionWindow = null;
                     }
                 }
 
                 if (e.Text[0] == '(')
                 {
+                    //completionWindow?.Close();
+                    CloseCompletionWindow();
                     var funcName = DaxLineParser.GetPreceedingWord(GetCurrentLine().TrimEnd('(').Trim()).ToLower();
                     Log.Verbose("Func: {Function}", funcName);
                     ShowInsight(funcName);
                 }
+                else
+                {
+                    if (_editor?.InsightWindow?.IsVisible??false) _editor.InsightWindow.Close();
+                }
+                
             }
             catch(Exception ex)
             {
-                HasThrownException = true;
+                //HasThrownException = true;
                 Log.Error("{class} {method} {exception} {stacktrace}", "DaxIntellisenseProvider", "ProcessTextEntered", ex.Message, ex.StackTrace);
-                Document.OutputError(string.Format("Intellisense Disabled for this window - {0}", ex.Message));
+                Document.OutputError($"Intellisense Disabled for this window - {ex.Message}");
             }
+        }
+
+        private CompletionWindow CreateCompletionWindow(object sender)
+        {
+            DaxStudioCompletionWindow completionWindow = new DaxStudioCompletionWindow(sender as TextArea);
+            // set properties
+            completionWindow.ResizeMode = ResizeMode.NoResize;
+            completionWindow.Width = completionWindow.Width * (_options.CodeCompletionWindowWidthIncrease / 100);
+            completionWindow.CloseAutomatically = false;
+            completionWindow.WindowStyle = WindowStyle.None;
+            completionWindow.CompletionList.BorderThickness = new Thickness(1);
+
+            AttachCompletionWindowEvents(completionWindow);
+            completionWindow.DetachCompletionEvents = DetachCompletionWindowEvents;
+
+            return completionWindow;
+        }
+
+        private void AttachCompletionWindowEvents(CompletionWindow completionWindow)
+        {
+            completionWindow.PreviewKeyUp += CompletionWindow_PreviewKeyUp;
+            completionWindow.Closing += completionWindow_Closing;
+            completionWindow.PreviewKeyUp += completionWindow_PreviewKeyUp;
+            completionWindow.MouseEnter += completionWindow_MouseEnter;
+            completionWindow.MouseLeave += completionWindow_MouseLeave;
+
+            //completionWindow.IsVisibleChanged += delegate
+            //{
+            //    System.Diagnostics.Debug.WriteLine("firing CompletionWindow IsVisibleChanged delegate");
+            //    CloseCompletionWindow();
+            //};
+            completionWindow.Closed += completionWindow_Closed;
+        }
+
+        private void completionWindow_Closed(object sender, EventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine("firing CompletionWindow Closed delegate");
+            CloseCompletionWindow();
+        }
+
+        private void DetachCompletionWindowEvents(CompletionWindow completionWindow)
+        {
+            System.Diagnostics.Debug.WriteLine("Detaching Completion Window Events");
+            completionWindow.PreviewKeyUp -= CompletionWindow_PreviewKeyUp;
+            completionWindow.Closing -= completionWindow_Closing;
+            completionWindow.PreviewKeyUp -= completionWindow_PreviewKeyUp;
+            completionWindow.MouseEnter -= completionWindow_MouseEnter;
+            completionWindow.MouseLeave -= completionWindow_MouseLeave;
+
+        }
+
+        private void completionWindow_MouseLeave(object sender, MouseEventArgs e)
+        {
+            _editor.IsMouseOverCompletionWindow = false;
+        }
+
+        private void completionWindow_MouseEnter(object sender, MouseEventArgs e)
+        {
+            _editor.IsMouseOverCompletionWindow = true;
+        }
+
+        private void CompletionWindow_PreviewKeyUp(object sender, KeyEventArgs e)
+        {
+            // close the completion window on the following keys
+            switch (e.Key)
+            {
+                case Key.Left:
+                case Key.Right:
+                case Key.OemCloseBrackets:
+                case Key.Escape:
+                    CloseCompletionWindow();
+                    break;
+
+            }
+            
         }
 
         public void ShowInsight(string funcName)
         {
-            //if (!funcName.EndsWith("(")) return;
+            ShowInsight(funcName, -1);
+        }
+        
+        public void ShowInsight(string funcName, int offset)
+        {
+
             funcName = funcName.TrimEnd('(');
 
-            ADOTabularFunction f = Document.Connection.FunctionGroups.GetByName(funcName);
+            ADOTabularFunction f = Document?.Connection?.FunctionGroups?.GetByName(funcName);
             
             if (f != null)
             {
-                try
-                {
-                    Log.Verbose("Showing InsightWindow for {function}", f.Caption);
-                    //var insight = _editor.InsightWindow;
-                    //if (_editor.InsightWindow == null )
-                    //{
-                    _editor.InsightWindow = null;
-                    _editor.InsightWindow = new InsightWindow(_editor.TextArea);
-                    //insight.ExpectInsertionBeforeStart = true;
-                    //}
-                    //_editor.InsightWindow.MaxWidth = 200;
-                    
-                    _editor.InsightWindow.Content = BuildInsightContent(f,400);
-                    
-                    _editor.InsightWindow.Show();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error("{class} {method} {message}", "DaxIntellisenseProvider", "ShowInsight", ex.Message);
-                }
+                ShowFunctionInsightWindow(offset, f);
+            }
+            else
+            {
+                ShowKeywordInsightWindow(offset, funcName);
             }
         }
 
-        private UIElement BuildInsightContent(ADOTabularFunction f, int maxWidth)
+        private void ShowFunctionInsightWindow(int offset, ADOTabularFunction f)
+        {
+            try
+            {
+                Log.Verbose("Showing InsightWindow for function {function}", f.Caption);
+                //_editor.InsightWindow?.Close();
+                _editor.InsightWindow = null;
+                _editor.InsightWindow = new InsightWindow(_editor.TextArea);
+                if (offset > -1)
+                {
+                    _editor.InsightWindow.StartOffset = offset;
+                }
+                _editor.InsightWindow.Content = BuildInsightFunctionContent(f, 400);
+                try
+                {
+                    _editor.InsightWindow.Show();
+
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Log.Warning("{class} {method} {message}", "DaxIntellisenseProvider", "ShowInsight", "Error calling InsightWindow.Show(): " + ex.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("{class} {method} {message}", "DaxIntellisenseProvider", "ShowInsight", ex.Message);
+            }
+        }
+
+        private void ShowKeywordInsightWindow(int offset, string keyword)
+        {
+            try
+            {
+                Log.Verbose($"Showing InsightWindow for keyword: {keyword}");
+                //_editor.InsightWindow?.Close();
+                _editor.InsightWindow = null;
+                _editor.InsightWindow = new InsightWindow(_editor.TextArea);
+                if (offset > -1)
+                {
+                    _editor.InsightWindow.StartOffset = offset;
+                }
+                _editor.InsightWindow.Content = BuildInsightKeywordContent(keyword, 400);
+                try
+                {
+                    _editor.InsightWindow.Show();
+
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Log.Warning("{class} {method} {message}", "DaxIntellisenseProvider", "ShowInsight", "Error calling InsightWindow.Show(): " + ex.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("{class} {method} {message}", "DaxIntellisenseProvider", "ShowInsight", ex.Message);
+            }
+        }
+
+        public string GetCurrentWord(TextViewPosition pos)
+        {
+            try
+            {
+                if (_editor.IsInComment()) return string.Empty;
+                var docLine = _editor.DocumentGetLineByNumber(pos.Line);
+                string line = _editor.DocumentGetText(docLine.Offset, docLine.Length);
+                var lineState = DaxLineParser.ParseLine(line, pos.Column , 0);
+                return line.Substring( lineState.StartOffset, lineState.EndOffset - lineState.StartOffset);
+            }
+            catch 
+            {
+                return string.Empty;
+            }
+        }
+
+        private UIElement BuildInsightFunctionContent(ADOTabularFunction f, int maxWidth)
         {
             var grd = new Grid();
             grd.ColumnDefinitions.Add(new ColumnDefinition() { MaxWidth = maxWidth });
-            var tb = new TextBlock();
-            tb.TextWrapping = TextWrapping.Wrap;
+            var tb = new TextBlock {TextWrapping = TextWrapping.Wrap};
             var caption = new Run(f.DaxName);
-            //caption.Foreground = Brushes.Blue;
             tb.Inlines.Add(new Bold(caption));
             tb.Inlines.Add("\n");
             tb.Inlines.Add(f.Description);
-            //tb.Inlines.Add("\n");
-            //tb.Inlines.Add(new Italic(new Run(f.DaxName)));
+
+            var docLink = new Hyperlink();
+            docLink.Inlines.Add($"https://dax.guide/{f.Caption}");
+            docLink.NavigateUri = new Uri($"https://dax.guide/{f.Caption}/?aff=dax-studio");
+            docLink.RequestNavigate += InsightHyperLinkNavigate;
+            tb.Inlines.Add("\n");
+            tb.Inlines.Add(docLink);
             Grid.SetColumn(tb, 0);
             grd.Children.Add(tb);
             return grd;
         }
 
-        void completionWindow_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+        private UIElement BuildInsightKeywordContent(string keyword, int maxWidth)
+        {
+            var grd = new Grid();
+            grd.ColumnDefinitions.Add(new ColumnDefinition() { MaxWidth = maxWidth });
+            var tb = new TextBlock { TextWrapping = TextWrapping.Wrap };
+            var caption = new Run(keyword);
+            tb.Inlines.Add(new Bold(caption));
+            //tb.Inlines.Add("\n");
+            //tb.Inlines.Add(f.Description);
+
+            var docLink = new Hyperlink();
+            docLink.Inlines.Add($"https://dax.guide/{keyword}");
+            docLink.NavigateUri = new Uri($"https://dax.guide/{keyword}/?aff=dax-studio");
+            docLink.RequestNavigate += InsightHyperLinkNavigate;
+            tb.Inlines.Add("\n");
+            tb.Inlines.Add(docLink);
+            Grid.SetColumn(tb, 0);
+            grd.Children.Add(tb);
+            return grd;
+        }
+
+        private void InsightHyperLinkNavigate(object sender, RequestNavigateEventArgs e)
+        {
+            Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri));
+            e.Handled = true;
+        }
+
+        void completionWindow_PreviewKeyUp(object sender, KeyEventArgs e)
         {
             var completionWindow = (CompletionWindow)sender;
-            var segmentLength = completionWindow.EndOffset - completionWindow.StartOffset;
-            SpacePressed = e.Key == Key.Space;
+            
+            _spacePressed = e.Key == Key.Space;
             // close window if F5 or F6 are pressed
-            if (e.Key == Key.F5
-                || e.Key == Key.F6) 
+            var keyStr = e.Key.ToString();
+            System.Diagnostics.Debug.WriteLine($"completionWindow_PreviewKeyUp: {keyStr}");
+            if (keyStr == _options.HotkeyRunQuery
+                || keyStr == _options.HotkeyRunQueryAlt
+                || keyStr == _options.HotkeyFormatQueryStandard
+                || keyStr == _options.HotkeyFormatQueryAlternate
+                )
             { 
-                completionWindow.Close(); 
-                return;
+                CloseCompletionWindow();
+                completionWindow = null;
             }
-            // insert the current item when the right arrow is pressed
-            //if (e.Key == Key.Right)
-            //{
-            //    completionWindow.CompletionList.RequestInsertion(null);
-            //}
+
         }
 
         void completionWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             // cancel closing if part way into a table or column name
             var lineState = ParseLine();
-            if (SpacePressed && (lineState.LineState == LineState.Column || lineState.LineState == LineState.Table)) e.Cancel = true;
-            var line = GetCurrentLine();
-            if (line.EndsWith("(")) {
-                var funcName = DaxLineParser.GetPreceedingWord(line.TrimEnd('('));
-                ShowInsight(funcName);
+            if (_spacePressed && (lineState.LineState == LineState.Column || lineState.LineState == LineState.Table))
+            {
+                e.Cancel = true;
+                return;
             }
+            
+            //var line = GetCurrentLine();
+            //if (line.EndsWith("(")) {
+            //    var funcName = DaxLineParser.GetPreceedingWord(line.TrimEnd('('));
+            //    ShowInsight(funcName);
+            //}
         }
 
-        public void ProcessTextEntering(object sender, System.Windows.Input.TextCompositionEventArgs e, ref CompletionWindow completionWindow)
+        public void ProcessTextEntering(object sender, TextCompositionEventArgs e, ref CompletionWindow completionWindow)
         {
-            
+            if (e.Text.Length <= 0 || completionWindow == null) return;
+            if (e.Text[0] == '(')
+            {
+                // Whenever a non-letter is typed while the completion window is open,
+                // insert the currently selected element.
+                completionWindow.CompletionList.RequestInsertion(e);
+                    
+            }
+            // Do not set e.Handled=true.
+            // We still want to insert the character that was typed.
         }
         #endregion
 
-        public DocumentViewModel Document { get; private set; }
-        public ADOTabularDynamicManagementViewCollection Dmvs { get; private set; }
+        public IDaxDocument Document { get; }
+        public ADOTabularDynamicManagementViewCollection DMVs { get; private set; }
         public ADOTabularFunctionGroupCollection FunctionGroups { get; private set; }
 
         private DaxLineState ParseLine()
@@ -345,8 +563,8 @@ namespace DaxStudio.UI.Utils
                     {
                         foreach (var col in tab.Columns)
                         {
-                            if ((col.ColumnType == ADOTabularColumnType.Column && metadataType.HasFlag(IntellisenseMetadataTypes.Columns))
-                                || col.ColumnType == ADOTabularColumnType.Measure && metadataType.HasFlag(IntellisenseMetadataTypes.Measures))
+                            if ((col.ObjectType == ADOTabularObjectType.Column && metadataType.HasFlag(IntellisenseMetadataTypes.Columns))
+                                || col.ObjectType == ADOTabularObjectType.Measure && metadataType.HasFlag(IntellisenseMetadataTypes.Measures))
                             {
 
                                 tmpData.Add(new DaxCompletionData(this, col, _daxState));
@@ -379,8 +597,11 @@ namespace DaxStudio.UI.Utils
             // add keywords
             if (metadataType.HasFlag(IntellisenseMetadataTypes.Keywords))
             {
+                // Keywords
                 tmpData.Add(new DaxCompletionData(this, "EVALUATE", 200.0));
                 tmpData.Add(new DaxCompletionData(this, "MEASURE", 200.0));
+                tmpData.Add(new DaxCompletionData(this, "COLUMN", 200.0));
+                tmpData.Add(new DaxCompletionData(this, "TABLE", 200.0));
                 tmpData.Add(new DaxCompletionData(this, "DEFINE", 200.0));
                 tmpData.Add(new DaxCompletionData(this, "ORDER BY", 200.0));
                 tmpData.Add(new DaxCompletionData(this, "ASC", 200.0));
@@ -388,7 +609,22 @@ namespace DaxStudio.UI.Utils
                 tmpData.Add(new DaxCompletionData(this, "SELECT", 200.0));
                 tmpData.Add(new DaxCompletionData(this, "FROM", 200.0));
                 tmpData.Add(new DaxCompletionData(this, "WHERE", 200.0));
+                tmpData.Add(new DaxCompletionData(this, "VAR", 200.0));
+                tmpData.Add(new DaxCompletionData(this, "RETURN", 200.0));
+                tmpData.Add(new DaxCompletionData(this, "START", 200.0));
+                tmpData.Add(new DaxCompletionData(this, "AT", 200.0));
                 tmpData.Add(new DaxCompletionData(this, "$SYSTEM", 200.0));
+
+                // Data Types
+                tmpData.Add(new DaxCompletionData(this, "BINARY", 300.0));
+                tmpData.Add(new DaxCompletionData(this, "BOOLEAN", 300.0));
+                tmpData.Add(new DaxCompletionData(this, "CURRENCY", 300.0));
+                tmpData.Add(new DaxCompletionData(this, "DATETIME", 300.0));
+                tmpData.Add(new DaxCompletionData(this, "DECIMAL", 300.0));
+                tmpData.Add(new DaxCompletionData(this, "DOUBLE", 300.0));
+                tmpData.Add(new DaxCompletionData(this, "INTEGER", 300.0));
+                tmpData.Add(new DaxCompletionData(this, "STRING", 300.0));
+                tmpData.Add(new DaxCompletionData(this, "VARIANT", 300.0));
             }
             foreach(var itm in tmpData.OrderBy(x => x.Content.ToString()))
             {
@@ -396,7 +632,7 @@ namespace DaxStudio.UI.Utils
             }
             
         }
-        private string GetPreceedingTableName()
+        private string GetPrecedingTableName()
         {
             string tableName = "";
             try
@@ -406,7 +642,7 @@ namespace DaxStudio.UI.Utils
             }
             catch (Exception ex)
             {
-                Log.Error("{class} {method} {error}", "DaxIntellisenseProvider", "GetPreceedingTableName", ex.Message);
+                Log.Error("{class} {method} {error}", nameof(DaxIntellisenseProvider), nameof(GetPrecedingTableName), ex.Message);
             }
             return tableName;
         }
@@ -428,11 +664,11 @@ namespace DaxStudio.UI.Utils
         public void ProcessKeyDown(object sender, KeyEventArgs e)
         {
             
-            if (HasThrownException) return;
+            //if (HasThrownException) return;
             if (e.Key == Key.Space && Keyboard.Modifiers.HasFlag(ModifierKeys.Control ))
             {
                 //TODO show intellisense on ctrl-space
-                System.Diagnostics.Debug.WriteLine("show intellisense");
+                Debug.WriteLine("show intellisense");
                 e.Handled = true;  //swallow keystroke
             }
         }
@@ -447,26 +683,17 @@ namespace DaxStudio.UI.Utils
 
         public void Handle(SelectedModelChangedEvent message)
         {
-            if (Document == message.Document)
-            {
-                Model = null;
-            }
+            Model = null;
         }
 
         public void Handle(DmvsLoadedEvent message)
         {
-            if (Document == message.Document)
-            {
-                Dmvs = message.DmvCollection;
-            }
+            DMVs = message.DmvCollection;
         }
 
         public void Handle(FunctionsLoadedEvent message)
         {
-            if (Document == message.Document)
-            {
-                FunctionGroups = message.FunctionGroups;
-            }
+            FunctionGroups = message.FunctionGroups;
         }
 
         public void Handle(ConnectionPendingEvent message)
@@ -474,10 +701,21 @@ namespace DaxStudio.UI.Utils
             if (message.Document == Document)
             {
                 FunctionGroups = null;
-                Dmvs = null;
+                DMVs = null;
             }
         }
 
-        public bool MetadataIsCached { get { return Model != null && FunctionGroups != null && Dmvs != null; } }
+        public bool MetadataIsCached => Model != null && FunctionGroups != null && DMVs != null;
+
+        private object _completionWindowCloseLock = new object();
+        public void CloseCompletionWindow()
+        {
+            System.Diagnostics.Debug.WriteLine("Calling CloseCompletionWindow");
+            lock (_completionWindowCloseLock)
+            {
+                _editor.InsightWindow?.Close();
+                _editor.DisposeCompletionWindow();
+            }
+        }
     }
 }

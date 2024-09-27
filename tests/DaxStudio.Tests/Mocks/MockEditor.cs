@@ -1,5 +1,5 @@
 ﻿using System;
-using DAXEditor;
+using DAXEditorControl;
 using ICSharpCode.AvalonEdit.CodeCompletion;
 using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Editing;
@@ -65,6 +65,7 @@ namespace DaxStudio.Tests.Mocks
         public TextDocument Document { get;set; }
 
         public int CaretOffset { get;set; }
+        public bool IsMouseOverCompletionWindow { get => false; set { } }
 
         public ICSharpCode.AvalonEdit.Document.TextLocation DocumentGetLocation(int offset)
         {
@@ -109,6 +110,9 @@ namespace DaxStudio.Tests.Mocks
             // do nothing
         }
 
-
+        public DocumentLine DocumentGetLineByNumber(int line)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -43,6 +43,10 @@ hr.small {
   border-radius: 3px;
 }
 
+.idx-thumb {
+  width: 250px;
+}
+
 .main-content {
   padding-top: 80px;
 }
@@ -639,6 +643,33 @@ table tr td :last-child {
   margin-bottom: 0;
 }
 
+.table-sponsors {
+  border: 0;
+  background-color: none;
+}
+
+table.table-sponsors tr {
+  border-top: 0px solid #cccccc;
+  background-color: #fff;
+  margin: 0;
+  padding: 0;
+}
+table.table-sponsors tr:nth-child(2n) {
+  background-color: #fff;
+}
+
+table.table-sponsors tr td:nth-child(1n) {
+  width: 120px;
+}
+
+
+table.table-sponsors tr td {
+  border: 0px;
+  text-align: left;
+  margin: 0;
+  padding: 6px 13px;
+}
+
 /* --- Code blocks --- */
 
 pre {
@@ -689,4 +720,32 @@ td.gutter {
   text-align: center;
   font-size: 0.8em;
   color: #404040;
+  padding: 10px 0 30px 0;
+}
+
+/* -- Side Nav -- */
+ul.sidenav {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  /*width: 200px;*/
+  background-color: #f1f1f1;
+}
+
+.sidenav li a {
+  display: block;
+  color: #000;
+  padding: 8px 16px;
+  text-decoration: none;
+}
+
+/* Change the link color on hover */
+.sidenav li a:hover {
+  background-color: #555;
+  color: white;
+}
+
+.sidenav .active {
+  background-color: #008AFF;
+  color: white;
 }

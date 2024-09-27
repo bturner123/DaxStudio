@@ -1,7 +1,7 @@
 ﻿namespace UnitComboLib.ViewModel
 {
   using System.Collections.ObjectModel;
-  using UnitComboLib.Unit;
+  using Unit;
 
   /// <summary>
   /// One item in the list of unit definition items
@@ -22,8 +22,8 @@
                     ObservableCollection<string> defaultValues)
     {
       this.Key = key;
-      this.DisplayNameLong = (displayNameLong == null ? "(null)" : displayNameLong);
-      this.DisplayNameShort = (displayNameShort == null ? "(null)" : displayNameShort);
+      this.DisplayNameLong = (displayNameLong ?? "(null)");
+      this.DisplayNameShort = (displayNameShort ?? "(null)");
 
       this.DefaultValues = defaultValues;
     }
@@ -59,7 +59,7 @@
     {
       get
       {
-        return string.Format("{0} ({1})", this.DisplayNameShort, this.DisplayNameLong);
+        return $"{DisplayNameShort} ({DisplayNameLong})";
       }
     }
 

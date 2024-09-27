@@ -1,53 +1,94 @@
 ﻿using System.Collections.Generic;
 using System.Collections;
-
-//using Microsoft.AnalysisServices.AdomdClient;
+using System.Diagnostics.Contracts;
+using ADOTabular.Extensions;
+using ADOTabular.Interfaces;
+using Microsoft.AnalysisServices.Tabular;
 
 namespace ADOTabular
 {
-    public enum ADOTabularColumnType
+    public enum ADOTabularObjectType
     {
         Column,
+        Folder,
         Measure,
         KPI,
         KPIStatus,
         KPIGoal,
         Hierarchy,
         Level,
-        UnnaturalHierarchy
+        UnnaturalHierarchy, 
+        Table,
+        DMV,
+        Function,
+        Unknown,
+        MeasureFormatString
     }
 
     public class ADOTabularColumnCollection: IEnumerable<ADOTabularColumn>
     {
-        private readonly ADOTabularTable _table;
-        private readonly ADOTabularConnection _adoTabConn;
-        public ADOTabularColumnCollection(ADOTabularConnection adoTabConn, ADOTabularTable table)
+        private readonly IADOTabularConnection _adoTabConn;
+        public ADOTabularColumnCollection(IADOTabularConnection adoTabConn, ADOTabularTable table)
         {
-            _table = table;
+            Contract.Requires(adoTabConn != null, "The adoTabConn parameter must not be null");
+
+            Table = table;
             _adoTabConn = adoTabConn;
-            if (_cols == null)
-            {
-                _cols = _adoTabConn.Visitor.Visit(this);
-            }
+            _colsByRef = new SortedDictionary<string, ADOTabularColumn>();
+            _cols ??= _adoTabConn.Visitor.Visit(this);
         }
 
-        public ADOTabularTable Table {
-            get { return _table; }
-        }
+        public ADOTabularTable Table { get; }
 
         public void Add(ADOTabularColumn column)
         {
+            if (column == null) return;
             _cols.Add(column.Name,column);
+            _colsByRef.Add(column.InternalReference, column);
+
+            // add TOM columns / measures
+            // we don't need any other types, this is just for intellisense support
+            var tomTable = Table.Model.TOMModel.Tables[Table.Name];
+            switch (column.ObjectType)
+            {
+                case ADOTabularObjectType.Column:
+                    tomTable.Columns.Add(new DataColumn() { 
+                        Name = column.Name, 
+                        Description = column.Description, 
+                        DataType = column.DataType, 
+                        IsHidden = !column.IsVisible});
+                    break;
+                case ADOTabularObjectType.Measure:
+                    var measure = new Measure()
+                    {
+                        Name = column.Name,
+                        Description = column.Description,
+                        IsHidden = !column.IsVisible
+                    };
+                    measure.SetDataType(column.DataType);
+                    //var t = typeof(Measure);
+                    //t.GetProperty("DataType")
+                    //    .SetValue(measure, column.DataType, null);
+                    tomTable.Measures.Add(measure);
+                    break;
+
+            }
+
+            
         }
 
         public void Remove(ADOTabularColumn column)
         {
+            if (column == null) return;
             _cols.Remove(column.Name);
+            _colsByRef.Remove(column.InternalReference);
         }
 
         public void Remove(string columnName)
         {
+            var col = _cols[columnName];
             _cols.Remove(columnName);
+            _colsByRef.Remove(col.InternalReference);
         }
 
         public bool ContainsKey(string index)
@@ -58,14 +99,16 @@ namespace ADOTabular
         public void Clear()
         {
             _cols.Clear();
+            _colsByRef.Clear();
         }
         //private readonly Dictionary<string, ADOTabularColumn> _cols;
         private readonly SortedDictionary<string, ADOTabularColumn> _cols;
+        private readonly SortedDictionary<string, ADOTabularColumn> _colsByRef;
 
         public ADOTabularColumn this[string index]
         {
-            get { return _cols[index]; }
-            set { _cols[index] = value; }
+            get => _cols[index];
+            set => _cols[index] = value;
         }
 
         public ADOTabularColumn this[int index]
@@ -80,33 +123,31 @@ namespace ADOTabular
 
         public ADOTabularColumn GetByPropertyRef(string referenceName)
         {
-            foreach (var c in _cols)
-            {
-                if (c.Value.InternalReference.Equals(referenceName, System.StringComparison.InvariantCultureIgnoreCase))
-                {
-                    return c.Value;
-                }
-            }
-            return null;
+            return _colsByRef[referenceName];
+            //foreach (var c in _cols)
+            //{
+            //    if (c.Value.InternalReference.Equals(referenceName, System.StringComparison.InvariantCultureIgnoreCase))
+            //    {
+            //        return c.Value;
+            //    }
+            //}
+            //return null;
         }
         public IEnumerator<ADOTabularColumn> GetEnumerator()
         {
             foreach (var adoTabularColumn in _cols.Values)
             {
-                // rownumber cannot be referenced in queries so we exclude it from the collection
+                // RowNumber cannot be referenced in queries so we exclude it from the collection
                 if (adoTabularColumn.Contents == "RowNumber") continue;
                 // the KPI components are available through the parent KPI object
-                if (adoTabularColumn.ColumnType == ADOTabularColumnType.KPIGoal) continue;
-                if (adoTabularColumn.ColumnType == ADOTabularColumnType.KPIStatus) continue;
+                if (adoTabularColumn.ObjectType == ADOTabularObjectType.KPIGoal) continue;
+                if (adoTabularColumn.ObjectType == ADOTabularObjectType.KPIStatus) continue;
 
                 yield return adoTabularColumn;
             }
         }
 
-        public int Count
-        {
-            get { return _cols.Count; }
-        }
+        public int Count => _cols.Count;
 
         IEnumerator IEnumerable.GetEnumerator()
         {

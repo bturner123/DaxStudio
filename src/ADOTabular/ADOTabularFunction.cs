@@ -1,57 +1,44 @@
-﻿using System.Data;
+﻿using ADOTabular.Interfaces;
+using System.Data;
+using System.Diagnostics.Contracts;
 
 namespace ADOTabular
 {
     public class ADOTabularFunction: IADOTabularObject
     {
-        private readonly string _caption;
-        private readonly string _desc;
-        private readonly string _group;
-        private readonly ADOTabularParameterCollection _paramColl;
         public ADOTabularFunction(DataRow dr)
         {
-            _caption = dr["FUNCTION_NAME"].ToString();
-            _desc = dr["DESCRIPTION"].ToString();
-            _group = dr["INTERFACE_NAME"].ToString();
-            _paramColl = new ADOTabularParameterCollection(dr.GetChildRows("rowsetTablePARAMETERINFO"));
+            Contract.Requires(dr != null, "The dr parameter must not be null");
+
+            Caption = dr["FUNCTION_NAME"].ToString();
+            Description = dr["DESCRIPTION"].ToString();
+            Group = dr["INTERFACE_NAME"].ToString();
+            Parameters = new ADOTabularFunctionArgumentCollection(dr.GetChildRows("rowsetTablePARAMETERINFO"));
             
         }
 
-        public ADOTabularFunction(string caption, string description, string groupName, ADOTabularParameterCollection param)
+        public ADOTabularFunction(string caption, string description, string groupName, ADOTabularFunctionArgumentCollection param)
         {
-            _caption = caption;
-            _desc = description;
-            _group = groupName;
-            _paramColl = param;
+            Caption = caption;
+            Description = description;
+            Group = groupName;
+            Parameters = param;
         }
 
-        public string Caption
-        {
-            get { return _caption; }
-        }
+        public string Caption { get; }
 
-        public string Description
-        {
-            get { return _desc; }
-        }
+        // functions are not translated so there is no difference between the Name and Caption
+        public string Name => Caption;
 
-        public string Group
-        {
-            get { return _group; }
-        }
+        public string Description { get; }
 
-        public ADOTabularParameterCollection Parameters
-        {
-            get { return _paramColl; }
-        }
+        public string Group { get; }
 
-        public string DaxName
-        {
-            get { return string.Format("{0}({1})", Caption, Parameters);  }
-        }
-        public MetadataImages MetadataImage
-        {
-            get { return MetadataImages.Function; }
-        }
+        public ADOTabularFunctionArgumentCollection Parameters { get; }
+
+        public ADOTabularObjectType ObjectType => ADOTabularObjectType.Function;
+        public string DaxName => $"{Caption}({Parameters})";
+        public MetadataImages MetadataImage => MetadataImages.Function;
+        public bool IsVisible => true;
     }
 }

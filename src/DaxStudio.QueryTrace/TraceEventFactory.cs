@@ -15,14 +15,16 @@ namespace DaxStudio.QueryTrace
             trc.Columns.Add(TraceColumn.Spid);
             trc.Columns.Add(TraceColumn.SessionID);
             trc.Columns.Add(TraceColumn.ActivityID);
+            trc.Columns.Add(TraceColumn.RequestID);
+            trc.Columns.Add(TraceColumn.DatabaseName);
+
             if (eventClass == TraceEventClass.QueryEnd)
             {
-                trc.Columns.Add(TraceColumn.DatabaseName);
                 trc.Columns.Add(TraceColumn.EndTime);
                 trc.Columns.Add(TraceColumn.NTUserName);
             }
 
-            if (eventClass != TraceEventClass.DirectQueryEnd) {
+            if (eventClass != TraceEventClass.DirectQueryEnd && eventClass != TraceEventClass.Error) {
                 // DirectQuery doesn't have subclasses
                 trc.Columns.Add(TraceColumn.EventSubclass);
             }
@@ -39,6 +41,12 @@ namespace DaxStudio.QueryTrace
                 trc.Columns.Add(TraceColumn.ApplicationName);
             }
             
+            if (eventClass == TraceEventClass.QueryBegin)
+            {
+                trc.Columns.Add(TraceColumn.RequestParameters);
+                trc.Columns.Add(TraceColumn.RequestProperties);
+            }
+
             switch (eventClass)
             {
                 case TraceEventClass.CommandEnd:

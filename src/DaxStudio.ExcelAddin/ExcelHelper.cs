@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
-using ADOTabular;
-using ADOTabular.AdomdClientWrappers;
+//using ADOTabular;
+//using ADOTabular.AdomdClientWrappers;
 using DaxStudio.Interfaces;
 using Microsoft.Office.Interop.Excel;
 using Office = Microsoft.Office.Core;
@@ -29,7 +29,7 @@ namespace DaxStudio.ExcelAddin
         private readonly Application _app ;
 
         public delegate void QueryTableRefreshedHandler(object sender, QueryTableRefreshEventArgs e);
-        public event QueryTableRefreshedHandler QueryTableRefreshed;
+        public event QueryTableRefreshedHandler QueryTableRefreshedEventHandler;
         
         public ExcelHelper( Application app)
         {
@@ -60,7 +60,7 @@ namespace DaxStudio.ExcelAddin
                 }
         }
 
-        public  void CopyDataTableToRange(System.Data.DataTable dt, Worksheet excelSheet)
+        internal static void CopyDataTableToRange(System.Data.DataTable dt, Worksheet excelSheet)
         {
             
             // Calculate the final column letter
@@ -91,6 +91,8 @@ namespace DaxStudio.ExcelAddin
             var iCol = 1;     // Excel ranges are 1 based
             foreach (DataColumn c in dt.Columns)
             {
+                Range rngHdr = r[1, iCol];
+                rngHdr.Value = rngHdr.Value.Replace('`',' ');
                 if (c.DataType == typeof(DateTime))
                 {
                     Range col = r.Columns[iCol];
@@ -106,7 +108,7 @@ namespace DaxStudio.ExcelAddin
             hdrFont.Bold = true;
         }
 
-        public  Worksheet CreateNewWorkSheeet(Workbook workbook)
+        internal static Worksheet CreateNewWorkSheeet(Workbook workbook)
         {
             // Create a new Sheet
             var shts = workbook.Sheets;
@@ -330,8 +332,10 @@ namespace DaxStudio.ExcelAddin
 
             if (olapPivotCaches.Count() == 0) {
                 var pc = CreateHiddenPivotTable(wb); // automatically generate a hidden pivot table 
-                var cache = new List<PivotCache>();
-                cache.Add(pc);
+                var cache = new List<PivotCache>
+                {
+                    pc
+                };
                 olapPivotCaches = cache;
             }
             
@@ -344,7 +348,7 @@ namespace DaxStudio.ExcelAddin
 
         public void OnQueryTableAfterRefresh(bool success) 
         {
-            QueryTableRefreshed(this, new QueryTableRefreshEventArgs(success));
+            QueryTableRefreshedEventHandler(this, new QueryTableRefreshEventArgs(success));
         }
 
         public void Dispose()
@@ -458,13 +462,11 @@ namespace DaxStudio.ExcelAddin
 
         public static void DaxQueryTable2013(Worksheet excelSheet, string daxQuery)//, IOutputWindow output)
         {
+            if (excelSheet == null) throw new ArgumentNullException(nameof(excelSheet));
 
             Worksheet ws = excelSheet;
             Workbook wb = excelSheet.Parent;
-            WorkbookConnection wbc=null;
-
-            wbc = FindPowerPivotConnection(wb);
-
+            WorkbookConnection wbc = FindPowerPivotConnection(wb);
             if (wbc == null) throw new Exception("Workbook table connection not found");
 
             var listObjs = ws.ListObjects;
@@ -509,6 +511,8 @@ namespace DaxStudio.ExcelAddin
 
         public static void DaxQueryTable2013(Worksheet excelSheet, string daxQuery, string connectionString)        
         {
+            // validate parameters
+            if (excelSheet == null) throw new ArgumentNullException(nameof(excelSheet));
 
             Workbook wb = excelSheet.Parent;
             string path = wb.FullName;
@@ -521,11 +525,10 @@ namespace DaxStudio.ExcelAddin
             else
             {
                 lo = listObjs.AddEx(0
-                    , string.Format("OLEDB;Provider=MSOLAP.5;Integrated Security=SSPI;{0}"
-                                , FixMDXCompatibilitySetting(connectionString))
-                , Type.Missing
-                , XlYesNoGuess.xlGuess
-                , excelSheet.Range["$A$1"]);
+                    , $"OLEDB;Provider=MSOLAP.5;Integrated Security=SSPI;{FixMDXCompatibilitySetting(connectionString)}"            
+                    , Type.Missing
+                    , XlYesNoGuess.xlGuess
+                    , excelSheet.Range["$A$1"]);
             }
             
             var qt = lo.QueryTable;

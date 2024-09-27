@@ -10,6 +10,8 @@ using DaxStudio.QueryTrace;
 using System.Timers;
 using DaxStudio.UI.Utils;
 using System;
+using System.Linq;
+using System.Windows.Media;
 using DaxStudio.UI.Extensions;
 
 namespace DaxStudio.UI.ViewModels
@@ -19,6 +21,7 @@ namespace DaxStudio.UI.ViewModels
         : Screen
         , IToolWindow
         , ITraceWatcher
+        , IZoomable
         , IHandle<DocumentConnectionUpdateEvent>
         , IHandle<QueryStartedEvent>
         , IHandle<CancelQueryEvent>
@@ -28,7 +31,8 @@ namespace DaxStudio.UI.ViewModels
         protected readonly IEventAggregator _eventAggregator;
         private IQueryHistoryEvent _queryHistoryEvent;
         private IGlobalOptions _globalOptions;
-        
+
+        protected IGlobalOptions GlobalOptions { get => _globalOptions; }
 
         [ImportingConstructor]
         protected TraceWatcherBaseViewModel(IEventAggregator eventAggregator, IGlobalOptions globalOptions)
@@ -37,8 +41,7 @@ namespace DaxStudio.UI.ViewModels
             _globalOptions = globalOptions;
             WaitForEvent = TraceEventClass.QueryEnd;
             HideCommand = new DelegateCommand(HideTrace, CanHideTrace);
-            Init();
-            
+           
             //_eventAggregator.Subscribe(this); 
         }
 
@@ -53,13 +56,10 @@ namespace DaxStudio.UI.ViewModels
         }
         
 
-        private void Init()
-        {
-            MonitoredEvents = GetMonitoredEvents();
-        }
+
 
         public DelegateCommand HideCommand { get; set; }
-        public List<DaxStudioTraceEventClass> MonitoredEvents { get; private set; }
+        public List<DaxStudioTraceEventClass> MonitoredEvents { get => GetMonitoredEvents(); }
         public TraceEventClass WaitForEvent { get; set; }
 
         // this is a list of the events captured by this trace watcher
@@ -108,7 +108,7 @@ namespace DaxStudio.UI.ViewModels
         public abstract void OnReset();
        
         // IToolWindow interface
-        public abstract string Title { get; set; }
+        public abstract string Title { get; }
 
         public virtual string TraceStatusText {
             get {
@@ -118,7 +118,7 @@ namespace DaxStudio.UI.ViewModels
                 //if (IsPaused) return $"Trace is paused, click on the start button in the toolbar below to re-start tracing";
                 return string.Empty; } }
 
-        public abstract string ToolTipText { get; set; }
+        public abstract string ToolTipText { get; }
 
         public virtual string DefaultDockingPane
         {
@@ -126,18 +126,20 @@ namespace DaxStudio.UI.ViewModels
             set { }
         }
 
-        public bool CanCloseWindow
+        public virtual bool CanCloseWindow
         {
-            get { return true; }
+            get => true;
             set { }
         }
-        public bool CanHide
+        public virtual bool CanHide
         {
-            get { return true; }
+            get => true;
             set { }
         }
         public int AutoHideMinHeight { get; set; }
         public bool IsSelected { get; set; }
+        public abstract string ContentId { get; }
+        public abstract ImageSource IconSource { get; }
 
         private bool _isEnabled ;
         public bool IsEnabled { get { return _isEnabled; }
@@ -198,7 +200,13 @@ namespace DaxStudio.UI.ViewModels
                 IsChecked = false;
                 return;
             }
+            
+#if PREVIEW
+            //HACK: Temporary hack to test Power BI XMLA Endpoint
+            IsAdminConnection = true;
+#else
             IsAdminConnection = connection.IsAdminConnection;
+#endif
             //IsEnabled = (!_connection.IsPowerPivot && _connection.IsAdminConnection && _connection.IsConnected);
             if (active != null)
                 IsEnabled = (connection.IsAdminConnection && connection.IsConnected && FilterForCurrentSession == active.FilterForCurrentSession);
@@ -206,7 +214,7 @@ namespace DaxStudio.UI.ViewModels
                 IsEnabled = (connection.IsAdminConnection && connection.IsConnected);
         }
 
-        private bool _isBusy = false;
+        private bool _isBusy;
         public bool IsBusy
         {
             get { return _isBusy; }
@@ -226,7 +234,7 @@ namespace DaxStudio.UI.ViewModels
         public void Handle(QueryStartedEvent message)
         {
             Log.Verbose("{class} {method} {message}", "TraceWatcherBaseViewModel", "Handle<QueryStartedEvent>", "Query Started");
-            if (!IsPaused)
+            if (!IsPaused && IsChecked)
             {
                 IsBusy = true;
                 Reset();
@@ -236,8 +244,11 @@ namespace DaxStudio.UI.ViewModels
         public void Handle(CancelQueryEvent message)
         {
             Log.Verbose("{class} {method} {message}", "TraceWatcherBaseViewModel", "Handle<QueryCancelEvent>", "Query Cancelled");
-            IsBusy = false;
-            Reset();
+            if (!IsPaused && !IsChecked)
+            {
+                IsBusy = false;
+                Reset();
+            }
         }
 
         Timer _timeout;
@@ -245,7 +256,7 @@ namespace DaxStudio.UI.ViewModels
         public IQueryHistoryEvent QueryHistoryEvent { get { return _queryHistoryEvent; } }
 
 
-        #region Title Bar Button methods and properties
+#region Title Bar Button methods and properties
         private bool _isPaused;
         public void Pause()
         {
@@ -261,6 +272,7 @@ namespace DaxStudio.UI.ViewModels
         public bool CanStop { get { return IsChecked; } }
         public void Stop()
         {
+            IsBusy = false;
             IsPaused = false;
             IsChecked = false;
         }
@@ -287,13 +299,30 @@ namespace DaxStudio.UI.ViewModels
         public virtual bool IsCopyAllVisible { get { return false; } }
         public abstract void CopyAll();
 
+        public virtual bool CanCopyResults => false;
+        public abstract void CopyResults();
+        public virtual bool IsCopyResultsVisible => false;
+        
+        public virtual bool CanExport { get { return true; }  }  // TODO - should this be conditional on whether we have data?
+
+        public void Export() {
+            var dialog = new System.Windows.Forms.SaveFileDialog();
+            dialog.Filter = "JSON file (*.json)|*.json";
+            dialog.Title = "Export Trace Details";
+
+            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK) ExportTraceDetails(dialog.FileName);
+        }
+
+        public abstract void ExportTraceDetails(string filePath);
+
         public virtual bool IsFilterVisible { get { return false; } }
         public virtual void ClearFilters() { }
 
-        private bool _showFilters = false;
+        private bool _showFilters;
+
         public bool ShowFilters { get { return _showFilters; } set { if (value != _showFilters) { _showFilters = value;  NotifyOfPropertyChange(() => ShowFilters); } } }
 
-        #endregion
+#endregion
 
         public abstract bool FilterForCurrentSession { get; }
         public bool IsAdminConnection { get; private set; }
@@ -304,6 +333,19 @@ namespace DaxStudio.UI.ViewModels
             }
         }
 
+        public event EventHandler OnScaleChanged;
+        private double _scale = 1;
+        public double Scale
+        {
+            get => _scale;
+            set
+            {
+                _scale = value;
+                NotifyOfPropertyChange();
+                OnScaleChanged(this, null);
+            }
+        }
+
         public void QueryCompleted(bool isCancelled, IQueryHistoryEvent queryHistoryEvent)
         {
             Log.Verbose("{class} {method} {message}", "TraceWatcherBaseViewModel", "QueryCompleted", isCancelled);
@@ -311,18 +353,28 @@ namespace DaxStudio.UI.ViewModels
             if (isCancelled) return;
             if (queryHistoryEvent.QueryText.Length == 0) return; // query text should only be empty for clear cache queries
 
-            // start timer, if timer elapses then print warning and set IsBusy = false
-            _timeout = new Timer(_globalOptions.QueryEndEventTimeout.SecondsToMilliseconds());
-            _timeout.AutoReset = false;
-            _timeout.Elapsed += QueryEndEventTimeout;
-            _timeout.Start();
-            BusyMessage = "Waiting for Query End event...";
+            // Check if the Events collection does not already contain a QueryEnd event
+            // if it doesn't we start the timeout timer
+            if (!Events.Any(ev => ev.EventClass == DaxStudioTraceEventClass.QueryEnd))
+            {
+                // start timer, if timer elapses then print warning and set IsBusy = false
+                _timeout = new Timer(_globalOptions.QueryEndEventTimeout.SecondsToMilliseconds());
+                _timeout.AutoReset = false;
+                _timeout.Elapsed += QueryEndEventTimeout;
+                _timeout.Start();
+                BusyMessage = "Waiting for Query End event...";
+            }
         }
 
         private void QueryEndEventTimeout(object sender, ElapsedEventArgs e)
         {
-            Reset();
-            _eventAggregator.PublishOnUIThread(new OutputMessage(MessageType.Warning, "Trace Stopped: QueryEnd event not received - Tracing timeout exceeded"));
+            // Check that the QueryEnd event is not in the collection of events, if not we only have
+            // a partial set of events and they cannot be relied upon so we clear them
+            if(!Events.Any(ev => ev.EventClass == DaxStudioTraceEventClass.QueryEnd)) {
+                Reset();
+                _eventAggregator.PublishOnUIThread(new OutputMessage(MessageType.Warning,
+                    "Trace Stopped: QueryEnd event not received - Server Timing End Event timeout exceeded. You could try increasing this timeout in the Options"));
+            }
         }
 
     }

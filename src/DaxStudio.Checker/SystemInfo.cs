@@ -1,8 +1,9 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.Management;
 using System.Threading;
 
-namespace DaxStudio.Checker
+namespace DaxStudio.CheckerApp
 {
     public static class SystemInfo
     {
@@ -10,6 +11,7 @@ namespace DaxStudio.Checker
         {
             var osInfo = GetOSInfo();
             output.AppendIndentedLine($"OSCaption       = {osInfo.Name}");
+            output.AppendIndentedLine($"OSRelease       = {osInfo.Release}");
             output.AppendIndentedLine($"OSVersion       = {osInfo.Version.ToString()}");
             output.AppendIndentedLine($"OSArchitecture  = {osInfo.Architecture}");
             output.AppendIndentedLine($"VisibleMemoryGB = {osInfo.TotalVisibleMemory.ToString("n2")}");
@@ -52,8 +54,13 @@ namespace DaxStudio.Checker
                 result.TotalFreeMemory = long.Parse(os["FreePhysicalMemory"].ToString()).KbToGb();
 
             }
-            return result;
 
+            string releaseId = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ReleaseId", "")?.ToString();
+            if (string.IsNullOrEmpty(releaseId)) releaseId = "<Unknown>";
+            result.Release = releaseId;
+
+
+            return result;
         }
 
         private struct OSInfo
@@ -63,6 +70,7 @@ namespace DaxStudio.Checker
             public string Architecture;
             public decimal TotalVisibleMemory;
             public decimal TotalFreeMemory;
+            public string Release;
         }
 
         public static decimal KbToGb(this long bytes)

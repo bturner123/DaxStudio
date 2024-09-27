@@ -2,17 +2,17 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections;
+using ADOTabular.Interfaces;
 
 namespace ADOTabular
 {
     public class ADOTabularKeywordCollection: IEnumerable<string>
     {
-        private ADOTabularConnection _connection;
-        private List<string> _keywords = new List<string>();
-        public ADOTabularKeywordCollection(ADOTabularConnection aDOTabularConnection)
+        private readonly IADOTabularConnection _connection;
+        private readonly List<string> _keywords = new List<string>();
+        public ADOTabularKeywordCollection(IADOTabularConnection adoTabularConnection)
         {
-            // TODO: Complete member initialization
-            this._connection = aDOTabularConnection;
+            _connection = adoTabularConnection ?? throw new ArgumentNullException(nameof(adoTabularConnection));
             _connection.Visitor.Visit(this);
         }
 

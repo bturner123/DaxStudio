@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -11,7 +11,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>DaxStudio.Tests</RootNamespace>
     <AssemblyName>DaxStudio.Tests</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{3AC096D0-A1C2-E12C-1390-A8335801FDAB};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <SccProjectName>SAK</SccProjectName>
@@ -31,6 +31,11 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <LangVersion>8.0</LangVersion>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -40,75 +45,32 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <LangVersion>8.0</LangVersion>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Tests|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\Tests\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>8.0</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Caliburn.Micro, Version=3.0.3.0, Culture=neutral, PublicKeyToken=8e5891231f2ed21f, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Caliburn.Micro.Core.3.0.3\lib\net45\Caliburn.Micro.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Caliburn.Micro.Platform, Version=3.0.3.0, Culture=neutral, PublicKeyToken=8e5891231f2ed21f, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Caliburn.Micro.3.0.3\lib\net45\Caliburn.Micro.Platform.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Caliburn.Micro.Platform.Core, Version=3.0.3.0, Culture=neutral, PublicKeyToken=8e5891231f2ed21f, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Caliburn.Micro.3.0.3\lib\net45\Caliburn.Micro.Platform.Core.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Castle.Core, Version=3.3.0.0, Culture=neutral, PublicKeyToken=407dd0808d44fbdc, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Castle.Core.3.3.3\lib\net45\Castle.Core.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="ICSharpCode.AvalonEdit, Version=5.0.3.0, Culture=neutral, PublicKeyToken=9cc39be672370310, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\AvalonEdit.5.0.3\lib\Net40\ICSharpCode.AvalonEdit.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="ICSharpCode.AvalonEdit.CodeCompletion, Version=1.33.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\SharpDevelopCodeCompletion.1.33.2.0\lib\ICSharpCode.AvalonEdit.CodeCompletion.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="ICSharpCode.NRefactory, Version=0.0.0.0, Culture=neutral, PublicKeyToken=efe927acf176eea2, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\SharpDevelopCodeCompletion.1.33.2.0\lib\ICSharpCode.NRefactory.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="ICSharpCode.SharpDevelop.Dom, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\SharpDevelopCodeCompletion.1.33.2.0\lib\ICSharpCode.SharpDevelop.Dom.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
-    <Reference Include="Mono.Cecil, Version=0.9.6.0, Culture=neutral, PublicKeyToken=0738eb9f132ed756, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Mono.Cecil.0.9.6.4\lib\net45\Mono.Cecil.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Mono.Cecil.Mdb, Version=0.9.6.0, Culture=neutral, PublicKeyToken=0738eb9f132ed756, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Mono.Cecil.0.9.6.4\lib\net45\Mono.Cecil.Mdb.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Mono.Cecil.Pdb, Version=0.9.6.0, Culture=neutral, PublicKeyToken=0738eb9f132ed756, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Mono.Cecil.0.9.6.4\lib\net45\Mono.Cecil.Pdb.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Mono.Cecil.Rocks, Version=0.9.6.0, Culture=neutral, PublicKeyToken=0738eb9f132ed756, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Mono.Cecil.0.9.6.4\lib\net45\Mono.Cecil.Rocks.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Moq, Version=4.5.28.0, Culture=neutral, PublicKeyToken=69f491c39445e920, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Moq.4.5.28\lib\net45\Moq.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Newtonsoft.Json, Version=9.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Newtonsoft.Json.9.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="PresentationCore" />
     <Reference Include="System" />
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
     <Reference Include="System.Data" />
-    <Reference Include="System.Windows.Interactivity, Version=4.5.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\Caliburn.Micro.3.0.3\lib\net45\System.Windows.Interactivity.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
+    <Reference Include="System.Windows.Forms" />
     <Reference Include="System.XML" />
   </ItemGroup>
   <ItemGroup>
@@ -117,13 +79,19 @@
     </CodeAnalysisDependentAssemblyPaths>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assertions\StringAssertion.cs" />
     <Compile Include="CodeCompletionTests.cs" />
-    <Compile Include="DatabaseProfileTests.cs" />
+    <Compile Include="ConnectionStringParserTests.cs" />
     <Compile Include="DaxEditorBracketHighlightTests.cs" />
+    <Compile Include="DaxHelperTests.cs" />
+    <Compile Include="DaxQueryPreProcessorTests.cs" />
+    <Compile Include="EntryPointTests.cs" />
     <Compile Include="HelpAboutTests.cs" />
+    <Compile Include="Helpers\StringHelpers.cs" />
+    <Compile Include="LongLineStateMachineTests.cs" />
+    <Compile Include="Mocks\MockColumn.cs" />
     <Compile Include="Mocks\MockEditor.cs" />
     <Compile Include="Mocks\MockEventAggregator.cs" />
-    <Compile Include="Mocks\MockGlobalOptions.cs" />
     <Compile Include="Mocks\MockDaxStudioHost.cs" />
     <Compile Include="Mocks\MockInsightProvider.cs" />
     <Compile Include="Mocks\MockWindowManager.cs" />
@@ -136,6 +104,14 @@
     <Compile Include="DaxLineParserTests.cs" />
     <Compile Include="DaxDefineMeasureTests.cs" />
     <Compile Include="DelimiterTranslatorTests.cs" />
+    <Compile Include="TomTests.cs" />
+    <Compile Include="TraceEventTests.cs" />
+    <Compile Include="TreeViewDisplayFolderTests.cs" />
+    <Compile Include="QueryBuilderTests.cs" />
+    <Compile Include="ServerNameConverterTests.cs" />
+    <Compile Include="DebugCommasTest.cs" />
+    <Compile Include="Utils\DmvHelpers.cs" />
+    <Compile Include="TreeViewTests.cs" />
     <Compile Include="_TestConfig.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -149,10 +125,18 @@
       <Name>DAXEditor</Name>
       <Private>True</Private>
     </ProjectReference>
+    <ProjectReference Include="..\..\src\DaxStudio.Common\DaxStudio.Common.csproj">
+      <Project>{508a1faa-9157-4474-94b4-fdbf76ffa74b}</Project>
+      <Name>DaxStudio.Common</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\src\DaxStudio.Interfaces\DaxStudio.Interfaces.csproj">
       <Project>{9cdccc97-ca3b-4bdf-b062-da0266387b76}</Project>
       <Name>DaxStudio.Interfaces</Name>
       <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\src\DaxStudio.Standalone\DaxStudio.Standalone.csproj">
+      <Project>{f92e0bfc-f721-4a08-a4fa-77dc019b14f6}</Project>
+      <Name>DaxStudio.Standalone</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\src\DaxStudio.UI\DaxStudio.UI.csproj">
       <Project>{5efeff14-3052-4dc1-b020-8e259062b899}</Project>
@@ -161,8 +145,46 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <None Include=".editorconfig" />
     <None Include="app.config" />
-    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="AvalonEdit">
+      <Version>6.1.2.30</Version>
+    </PackageReference>
+    <PackageReference Include="Caliburn.Micro">
+      <Version>3.2.0</Version>
+    </PackageReference>
+    <PackageReference Include="Castle.Core">
+      <Version>4.4.1</Version>
+    </PackageReference>
+    <PackageReference Include="Humanizer">
+      <Version>2.11.10</Version>
+    </PackageReference>
+    <PackageReference Include="Mono.Cecil">
+      <Version>0.11.4</Version>
+    </PackageReference>
+    <PackageReference Include="Moq">
+      <Version>4.16.1</Version>
+    </PackageReference>
+    <PackageReference Include="MSTestHacks">
+      <Version>2.3.20</Version>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json">
+      <Version>12.0.3</Version>
+    </PackageReference>
+    <PackageReference Include="SharpDevelopCodeCompletion">
+      <Version>1.33.2</Version>
+    </PackageReference>
+    <PackageReference Include="System.Runtime">
+      <Version>4.3.1</Version>
+    </PackageReference>
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe">
+      <Version>5.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="System.ValueTuple">
+      <Version>4.5.0</Version>
+    </PackageReference>
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />

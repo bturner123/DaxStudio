@@ -3,7 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:avalondock="http://schemas.xceed.com/wpf/xaml/avalondock"
+             xmlns:avalondock="https://github.com/Dirkster99/AvalonDock"
+             xmlns:avalonDockControls="clr-namespace:AvalonDock.Controls;assembly=AvalonDock"
+             xmlns:shell="clr-namespace:Microsoft.Windows.Shell;assembly=AvalonDock"
              xmlns:i="clr-namespace:System.Windows.Interactivity;assembly=System.Windows.Interactivity"
              xmlns:cal="clr-namespace:Caliburn.Micro;assembly=Caliburn.Micro.Platform"
              xmlns:local="clr-namespace:DaxStudio.UI.Converters"
@@ -13,19 +15,28 @@
              mc:Ignorable="d" 
              d:DesignHeight="300" d:DesignWidth="300">
     <UserControl.Resources>
-        <local:ActiveDocumentConverter x:Key="ActiveDocumentConverter"/>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
-        <local:BoolToHiddenConverter x:Key="BoolToHiddenConverter"/>
+        <ResourceDictionary>
+            <local:ActiveDocumentConverter x:Key="ActiveDocumentConverter"/>
+            <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <local:BoolToHiddenConverter x:Key="BoolToHiddenConverter"/>
+
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary  Source="pack://application:,,,/DaxStudio.UI;Component/Resources/Styles/AvalonDock.NavigatorWindow.xaml" />
+                <!--<ResourceDictionary Source="Styles/AvalonDock.NavigatorWindow.xaml"/>-->
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </UserControl.Resources>
     
     
     <Grid>
         <avalondock:DockingManager 
             x:Name="Items"
-            ActiveContent="{Binding ActiveDocument, Mode=TwoWay, Converter={StaticResource ActiveDocumentConverter}}"        
+     
+            ActiveContent="{Binding ActiveDocument, Mode=TwoWay, Converter={StaticResource ActiveDocumentConverter}}" 
+            cal:Message.Attach="[Event ActiveContentChanged] = [Action ActiveDocumentChanged]" 
             >
-
-
+            <!-- Theme="{Binding AvalonDockTheme}"-->
+            
             <avalondock:DockingManager.LayoutItemTemplateSelector>
                 <selectors:AvalonDockTemplateSelector>
                     <selectors:AvalonDockTemplateSelector.DocumentViewTemplate>
@@ -35,6 +46,7 @@
                     </selectors:AvalonDockTemplateSelector.DocumentViewTemplate>
                 </selectors:AvalonDockTemplateSelector>
             </avalondock:DockingManager.LayoutItemTemplateSelector>
+
 
 
             <avalondock:DockingManager.Theme>
@@ -65,10 +77,13 @@
             <avalondock:DockingManager.DocumentHeaderTemplate>
                 <DataTemplate>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="4" FontFamily="Webdings" Width="10" Padding="0,3,0,0"
+                        <TextBlock Text="4" FontFamily="Webdings" Width="10" Padding="0,0,0,0"
                                    Visibility="{Binding Converter={StaticResource BoolToHiddenConverter},Path=Content.IsQueryRunning}"
                                    />
-                        <TextBlock Text="{Binding Content.DisplayName}"/>
+
+                        <TextBlock Text="{Binding Content.DisplayName}" ToolTip="{Binding Content.FileName}"/>
+                        <TextBlock Text="*" Visibility="{Binding Content.IsDirty, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
                         <!-- 
                         <Button x:Name="DocumentCloseButton"
                                 Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" 
@@ -90,6 +105,7 @@
                 <DataTemplate>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{Binding Content.DisplayName}"/>
+                        <TextBlock Text="*" Visibility="{Binding Content.IsDirty, Converter={StaticResource BoolToVisibilityConverter}}"/>
                     </StackPanel>
                 </DataTemplate>
             </avalondock:DockingManager.DocumentPaneMenuItemHeaderTemplate>
@@ -105,7 +121,20 @@
             </avalondock:DockingManager.DocumentTemplate>
             -->
 
-            
+            <avalondock:DockingManager.LayoutItemContainerStyleSelector>
+                <utils:PanesStyleSelector>
+                <utils:PanesStyleSelector.DocumentStyle>
+                 <!--Define Style of a Document View--> 
+                <Style TargetType="{x:Type avalonDockControls:LayoutItem}">
+                    <Setter Property="Title" Value="{Binding Model.DisplayName, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Setter Property="ToolTip" Value="{Binding Model.FilePath}"/>
+                    <Setter Property="CloseCommand" Value="{Binding Model.CloseCommand}"/>
+                    <Setter Property="IconSource" Value="{Binding Model.IconSource}"/>
+                    <Setter Property="ContentId" Value="{Binding Model.ContentId}"/>
+                </Style>
+                </utils:PanesStyleSelector.DocumentStyle>
+                </utils:PanesStyleSelector>
+            </avalondock:DockingManager.LayoutItemContainerStyleSelector>
 
             <i:Interaction.Triggers>
                 <i:EventTrigger EventName="DocumentClosing">
@@ -115,6 +144,15 @@
                     </cal:ActionMessage>
                 </i:EventTrigger>
             </i:Interaction.Triggers>
+
+            <avalondock:DockingManager.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceDictionary Source="pack://application:,,,/DaxStudio.UI;Component/Resources/Styles/AvalonDock.NavigatorWindow.xaml"/>
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+                
+            </avalondock:DockingManager.Resources>
             
         </avalondock:DockingManager>
     </Grid>

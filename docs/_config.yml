@@ -4,7 +4,7 @@
 # baseurl is the website's URL without the hostname
 
 # If you are building a simple GitHub user page (http://username.github.io) then use these settings:
-url: "http://daxstudio.org"
+url: "https://daxstudio.org"
 baseurl: ""
 repository: "DaxStudio/DaxStudio"
 # If you are building a GitHub project page then use these settings:
@@ -15,6 +15,8 @@ repository: "DaxStudio/DaxStudio"
 
 collections:
   documentation:
+    output: true
+  tutorials:
     output: true
 
 # Name of website
@@ -28,13 +30,20 @@ description: "The ultimate client tool for working with DAX queries"
 # List of links in the navigation bar
 navbar-links:
   Downloads: "downloads"
+  Tutorials:
+    - Getting Connected: "tutorials/getting-connected"
+    - Writing DAX Queries: "tutorials/writing-dax-queries"
   Documentation:
     - Home: "documentation"
-    - Feature List: "documentation/features"
+    - Feature List: "documentation/features/all-queries-trace"
     - Videos: "documentation/videos"
     - Installation: "documentation/installation"
+    - Requirements: "documentation/requirements"
     - Troubleshooting: "documentation/troubleshooting"
-#  Discussions: "https://gitter.im/daxstudio/Lobby"
+    - Change Log: "changelog"
+    - License: "documentation/license"
+  FAQ: "faq"
+  Discussions: "https://github.com/DaxStudio/DaxStudio/discussions"
   "Issues / Requests": "issues"
 
 # Image to show in the navigation bar - image must be a square (width = height)
@@ -93,7 +102,7 @@ share-links-active:
 
 # How to display the link to the website in the footer
 # Remove this if you don't want a link in the footer
-url-pretty: "DaxStudio.org" 
+url-pretty: "DaxStudio.org"
 
 # --- Misc --- #
 # Fill in your Disqus shortname (NOT the userid) if you want to support Disqus comments
@@ -151,7 +160,7 @@ defaults:
   - scope:
       path: "_documentation/features"
     values:
-      layout: "doco"
+      layout: "feature"
       feature: true
   - scope:
       path: "_documentation/installation"
@@ -174,7 +183,6 @@ link-tags: false
 
 # Exclude these files from production site
 exclude:
-  - CHANGELOG.md
   - CNAME
   - Dockerfile
   - Gemfile
@@ -235,6 +243,8 @@ prose:
           element: "checkbox"
           label: "Publish"
           help: "Check to publish post, uncheck to hide."
+
+# github: [metadata]
 
 plugins:
   - jekyll-paginate

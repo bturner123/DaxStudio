@@ -15,6 +15,11 @@ using System.Drawing;
 using System.Linq;
 using System;
 using DaxStudio.UI.Views;
+using UnitComboLib.ViewModel;
+using System.Collections.ObjectModel;
+using System.Windows.Media;
+using UnitComboLib.Unit.Screen;
+using DaxStudio.UI.Utils;
 
 namespace DaxStudio.UI.ViewModels
 {
@@ -29,6 +34,7 @@ namespace DaxStudio.UI.ViewModels
         , IHandle<CancelQueryEvent>
         , IHandle<QueryFinishedEvent>
         , IHandle<UpdateGlobalOptions>
+        , IHandle<SizeUnitsUpdatedEvent>
     {
         private DataTable _resultsTable;
         private string _selectedWorksheet;
@@ -43,6 +49,9 @@ namespace DaxStudio.UI.ViewModels
             //_eventAggregator.Subscribe(this);
             _host = host;
             _options = options;
+            var items = new ObservableCollection<ListItem>(ScreenUnitsHelper.GenerateScreenUnitList());
+            SizeUnits = new UnitViewModel(items, new ScreenConverter(_options.ResultFontSizePx), 0);
+            //UpdateSettings();
         }
 
         public QueryResultsPaneViewModel(DataTable resultsTable)
@@ -51,14 +60,23 @@ namespace DaxStudio.UI.ViewModels
             
         }
 
-        public override string Title
+        public override string Title => "Results";
+        public override string DefaultDockingPane => "DockBottom";
+        public override string ContentId => "results";
+        public override ImageSource IconSource
         {
-            get { return "Results"; }
+            get
+            {
+                var imgSourceConverter = new ImageSourceConverter();
+                return imgSourceConverter.ConvertFromInvariantString(
+                    @"pack://application:,,,/DaxStudio.UI;component/images/icon-table.png") as ImageSource;
+
+            }
         }
 
         public DataTable ResultsDataTable
         {
-            get { return _resultsTable; }
+            get => _resultsTable;
             set { _resultsTable = value;
             ShowResultsTable = true;
             NotifyOfPropertyChange(()=> ResultsDataView);}
@@ -67,7 +85,9 @@ namespace DaxStudio.UI.ViewModels
         public DataSet ResultsDataSet
         {
             get { return _resultsDataSet; }
-            set { _resultsDataSet = value;
+            set {
+                _resultsDataSet?.Dispose();
+                _resultsDataSet = value;
                 ShowResultsTable = true;
                 NotifyOfPropertyChange(() => Tables);
                 SelectedTableIndex = 0;
@@ -129,7 +149,7 @@ namespace DaxStudio.UI.ViewModels
             private set
             {
                 _showResultsTable = value;
-                _showResultsMessage = !value;
+                if (value) ResultsMessage = string.Empty;
                 NotifyOfPropertyChange(() => ShowResultsTable);
                 NotifyOfPropertyChange(() => ShowResultsMessage);
             }
@@ -142,25 +162,25 @@ namespace DaxStudio.UI.ViewModels
             set
             {
                 _resultsMessage = value;
-                ShowResultsTable = string.IsNullOrEmpty(_resultsMessage);
                 NotifyOfPropertyChange(() => ResultsMessage);
             }
         }
 
 
 
-        private bool _showResultsMessage;
+        //private bool _showResultsMessage;
         public bool ShowResultsMessage
         {
-            get { return _showResultsMessage; }
-            private set
-            {
-                _showResultsMessage = value;
-                NotifyOfPropertyChange(() => ShowResultsMessage);
-            }
+            get { return !ShowResultsTable; }
+            //private set
+            //{
+            //    _showResultsMessage = value;
+            //    NotifyOfPropertyChange(() => ShowResultsMessage);
+            //    NotifyOfPropertyChange(() => ShowResultsTable);
+            //}
         }
-        private OutputTargets _icon;
-        public OutputTargets ResultsIcon
+        private OutputTarget _icon;
+        public OutputTarget ResultsIcon
         {
             get { return _icon; }
             set
@@ -171,6 +191,25 @@ namespace DaxStudio.UI.ViewModels
             }
         }
 
+        private double _fontSize = 20;
+        public double FontSize {
+            get { return _fontSize; }
+            set {
+                _fontSize = value;
+                NotifyOfPropertyChange(() => FontSize);
+            }
+        }
+
+        private string _fontFamily = "Arial";
+        public string FontFamily
+        {
+            get { return _fontFamily; }
+            set
+            {
+                _fontFamily = value;
+                NotifyOfPropertyChange(() => FontFamily);
+            }
+        }
 
         public void Handle(QueryResultsPaneMessageEvent message)
         {
@@ -216,11 +255,11 @@ namespace DaxStudio.UI.ViewModels
             get
             {
                 // Only show the worksheets option if the output is one of the Excel Targets
-                return ResultsIcon == OutputTargets.Linked || ResultsIcon == OutputTargets.Static;
+                return  _host.IsExcel && (ResultsIcon == OutputTarget.Linked || ResultsIcon == OutputTarget.Static);
             }
         }
 
-        private bool _isBusy = false;
+        private bool _isBusy;
         public bool IsBusy
         {
             get { return _isBusy; }
@@ -261,8 +300,8 @@ namespace DaxStudio.UI.ViewModels
         {
             System.Diagnostics.Debug.WriteLine("DoubleClick fired");
             string dataContext = string.Empty;
-            if (e.OriginalSource is TextBlock) { dataContext = ((TextBlock)e.OriginalSource).DataContext as string; }
-            if (e.OriginalSource is Border) { dataContext = ((Border)e.OriginalSource).DataContext as string; }
+            if (e.OriginalSource is TextBlock block) { dataContext = block.DataContext as string; }
+            if (e.OriginalSource is Border border) { dataContext = border.DataContext as string; }
 
             if (!string.IsNullOrEmpty(dataContext))
             {
@@ -315,11 +354,11 @@ namespace DaxStudio.UI.ViewModels
             }
         }
 
-        public Brush TabItemBrush
+        public System.Windows.Media.Brush TabItemBrush
         {
             get
             {
-                return  (Brush)GetValueFromStyle(typeof(TabItem), Control.BackgroundProperty) ?? Brushes.LightSkyBlue;
+                return  (System.Windows.Media.Brush)GetValueFromStyle(typeof(TabItem), Control.BackgroundProperty) ?? System.Windows.Media.Brushes.LightSkyBlue;
             }
         }
 
@@ -343,10 +382,21 @@ namespace DaxStudio.UI.ViewModels
             return null;
         }
 
+        public UnitViewModel SizeUnits { get; set; }
+
         public void Handle(UpdateGlobalOptions message)
         {
-            NotifyOfPropertyChange(() => ClipboardCopyMode);
-            
+            UpdateSettings();
+        }
+        
+        public void Handle(SizeUnitsUpdatedEvent message)
+        {
+            if (_options.ScaleResultsFontWithEditor)
+            {
+                this.Scale = message.Units.Value / 100.0;
+                //SizeUnits.Value = message.Units.Value;
+                //NotifyOfPropertyChange(() => SizeUnits.ScreenPoints);
+            }
         }
 
         public DataGridClipboardCopyMode ClipboardCopyMode
@@ -357,5 +407,28 @@ namespace DaxStudio.UI.ViewModels
                 return DataGridClipboardCopyMode.IncludeHeader;
             }
         }
+
+        protected override void OnViewLoaded(object view)
+        {
+            UpdateSettings();
+        }
+
+        private void UpdateSettings()
+        {
+            NotifyOfPropertyChange(() => ClipboardCopyMode);
+
+            if (FontSize != _options.ResultFontSizePx)
+            {
+                FontSize = _options.ResultFontSizePx;
+                this.SizeUnits.SetOneHundredPercentFontSize(_options.ResultFontSizePx);
+                this.SizeUnits.Value = 100;
+                NotifyOfPropertyChange(() => SizeUnits);
+            }
+            if (FontFamily != _options.ResultFontFamily)
+            {
+                FontFamily = _options.ResultFontFamily;
+            }
+        }
+
     }
 }

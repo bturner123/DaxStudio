@@ -3,13 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:xctk="http://schemas.xceed.com/wpf/xaml/toolkit"
+             xmlns:wmc="clr-namespace:WatermarkControlsLib.Controls;assembly=WatermarkControlsLib"
              xmlns:conv="clr-namespace:DaxStudio.UI.Converters"
              xmlns:Fluent="clr-namespace:Fluent;assembly=Fluent"
              xmlns:i="clr-namespace:System.Windows.Interactivity;assembly=System.Windows.Interactivity"
              xmlns:trig="clr-namespace:DaxStudio.UI.Triggers"
              xmlns:cal="clr-namespace:Caliburn.Micro;assembly=Caliburn.Micro.Platform"
              xmlns:ap="clr-namespace:DaxStudio.UI.AttachedProperties"
+             
              mc:Ignorable="d" 
              d:DesignWidth="300" 
              d:DesignHeight="100"
@@ -31,7 +32,9 @@
         <BitmapImage x:Key="CaretDown" UriSource="pack://application:,,,/DaxStudio.UI;component/Images/FindReplace/CaretDown_x16.png"/>
         <BitmapImage x:Key="Wildcard" UriSource="pack://application:,,,/DaxStudio.UI;component/Images/FindReplace/Wildcard.png"/>
 
-        <Style TargetType="{x:Type ToggleButton}">
+
+
+            <Style TargetType="{x:Type ToggleButton}">
             <!--<span class="code-comment"> Set the ItemTemplate of the ListBox to a DataTemplate which
            explains how to display an object of type BitmapImage. -->
             <Setter Property="Background" Value="Transparent"/>
@@ -104,7 +107,7 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid d:Visibility="True"  Visibility="{Binding Path=IsVisible,Converter={StaticResource BoolToVisibilityConverter}}"
+    <Grid  ap:DesignModeHelper.Visibility="Visible" Visibility="{Binding Path=IsVisible,Converter={StaticResource BoolToVisibilityConverter}}"
           >
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
@@ -124,7 +127,7 @@
                 Style="{StaticResource ShowReplaceImageStyle}"
                 ToolTip="Toggle to switch between search and replace modes"/>
 
-        <xctk:WatermarkTextBox Name="TextToFind" Watermark="Search term"
+        <wmc:WatermarkTextBox Name="TextToFind" Watermark="Search term"
                                Margin="3" Grid.Row="0" Grid.Column="1"
                                cal:Message.Attach="[Key Enter] = [FindText]"
                                ap:InitialFocusExtentions.SelectWhenFocused="{Binding Path=IsVisible}">
@@ -139,7 +142,7 @@
                     <cal:ActionMessage MethodName="Find"/>
                 </trig:KeyPressTrigger>
             </i:Interaction.Triggers> -->
-        </xctk:WatermarkTextBox>
+        </wmc:WatermarkTextBox>
         
         <StackPanel Orientation="Horizontal" Grid.Column="2" Grid.Row="0" HorizontalAlignment="Right">
             <!--
@@ -175,7 +178,7 @@
             </Button>
         </StackPanel>
 
-        <xctk:WatermarkTextBox Watermark="Replacement term" 
+        <wmc:WatermarkTextBox Watermark="Replacement term" 
                                Visibility="{Binding ShowReplace, Converter={StaticResource BoolToVisibilityConverter }}" 
                                Margin="3" 
                                cal:Message.Attach="[Key Enter] = [ReplaceText]"

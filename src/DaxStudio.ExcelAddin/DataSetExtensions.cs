@@ -36,7 +36,9 @@ namespace DaxStudio.ExcelAddin
             // Copy the values to the object array
             for (int col = 0; col < dt.Columns.Count; col++)
             {
-                if ( dt.Columns[col].DataType.Name == "Byte[]" ) // TODO: there must be a better way to do this than to compare to a type name as a string
+                // I don't like comparing a type name to a string, but I have not found a better way of doing this
+                // (taken from https://stackoverflow.com/questions/2114823/how-do-i-check-if-an-object-contains-a-byte-array)
+                if ( dt.Columns[col].DataType.Name == "Byte[]" ) 
                     continue; // ignore this column 
 
                 for (int row = 0; row < dt.Rows.Count; row++)
@@ -65,7 +67,7 @@ namespace DaxStudio.ExcelAddin
             foreach (var col in dataTable.Columns)
             {
                 if (col == null)
-                    sbData.Append(",");
+                    sbData.Append(',');
                 else
                     sbData.Append("\"" + col.ToString().Replace("\"", "\"\"") + "\",");
             }
@@ -77,7 +79,7 @@ namespace DaxStudio.ExcelAddin
                 foreach (var column in dr.ItemArray)
                 {
                     if (column == null)
-                        sbData.Append(",");
+                        sbData.Append(',');
                     else
                         sbData.Append("\"" + column.ToString().Replace("\"", "\"\"") + "\",");
                 }
@@ -98,9 +100,13 @@ namespace DaxStudio.ExcelAddin
             foreach (var col in dataTable.Columns)
             {
                 if (col == null)
-                    sbData.Append("\t");
+                    sbData.Append('\t');
                 else
-                    sbData.Append("\"" + col.ToString().Replace("\"", "\"\"") + "\",");
+                {
+                    sbData.Append('\"');
+                    sbData.Append(col.ToString().Replace("\"", "\"\""));
+                    sbData.Append("\",");
+                }
             }
 
             sbData.Replace("\t", System.Environment.NewLine, sbData.Length - 1, 1);
@@ -110,9 +116,13 @@ namespace DaxStudio.ExcelAddin
                 foreach (var column in dr.ItemArray)
                 {
                     if (column == null)
-                        sbData.Append("\t");
+                        sbData.Append('\t');
                     else
-                        sbData.Append("\"" + column.ToString().Replace("\"", "\"\"") + "\",");
+                    {
+                        sbData.Append('\"');
+                        sbData.Append(column.ToString().Replace("\"", "\"\""));
+                        sbData.Append( "\",");
+                    }
                 }
                 sbData.Replace("\t", System.Environment.NewLine, sbData.Length - 1, 1);
             }

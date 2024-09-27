@@ -2,30 +2,23 @@
 using Caliburn.Micro;
 using DaxStudio.UI.Events;
 using DaxStudio.UI.Model;
-using DaxStudio.UI.Interfaces;
 using System.Windows.Data;
 using System;
 using System.ComponentModel;
+using System.Net.Mime;
+using System.Windows;
+using System.Windows.Media;
 using Serilog;
-using System.Windows.Input;
 using DaxStudio.Interfaces;
 
 namespace DaxStudio.UI.ViewModels
 {
 
-    //public class QueryHistoryPaneViewModelFactory
-    //{
-    //    [Export(typeof(Func<GlobalQueryHistory,IEventAggregator,DocumentViewModel,QueryHistoryPaneViewModel>))]
-    //    public QueryHistoryPaneViewModel Create(GlobalQueryHistory globalHistory, IEventAggregator eventAggregator, DocumentViewModel document)
-    //    {
-    //        return new QueryHistoryPaneViewModel(globalHistory, eventAggregator,document);
-    //    }
-    //}
-
     [PartCreationPolicy(CreationPolicy.NonShared)]
     [Export]
     public class QueryHistoryPaneViewModel : ToolWindowBase
         , IHandle<DocumentConnectionUpdateEvent>
+        , IHandle<DatabaseChangedEvent>
         , IHandle<UpdateGlobalOptions>
     {
         private bool _isFilteredByServer = true;
@@ -33,8 +26,9 @@ namespace DaxStudio.UI.ViewModels
         private readonly GlobalQueryHistory _globalHistory;
         private readonly ListCollectionView _queryHistory;
         private readonly IEventAggregator _eventAggregator;
-        private readonly DocumentViewModel _currentDocument;
+        //private readonly IConnection _currentConnection;
         private readonly IGlobalOptions _globalOptions;
+        private readonly DocumentViewModel CurrentDocument;
 
         [ImportingConstructor]
         public QueryHistoryPaneViewModel(GlobalQueryHistory globalHistory, IEventAggregator eventAggregator, DocumentViewModel currentDocument, IGlobalOptions options)
@@ -46,29 +40,33 @@ namespace DaxStudio.UI.ViewModels
             _eventAggregator.Subscribe(this);            
             _queryHistory = new ListCollectionView(globalHistory.QueryHistory);
             //_queryHistory.PageSize = 50;
-            _currentDocument = currentDocument;
+            CurrentDocument = currentDocument;
             _queryHistory.Filter = HistoryFilter;
             // sort by StartTime Desc by default
             _queryHistory.SortDescriptions.Add(new SortDescription("StartTime", ListSortDirection.Descending));
             Log.Debug("{class} {method} {message}", "QueryHistoryPaneViewModel", "ctor", "end");
         }
 
-        public BindableCollection<QueryHistoryEvent> QueryHistoryList { 
-            get {
-                return _globalHistory.QueryHistory; 
-            } 
-        }
+        public BindableCollection<QueryHistoryEvent> QueryHistoryList => _globalHistory.QueryHistory;
 
-        public override string Title
+        public override string Title => "Query History";
+        public override string DefaultDockingPane => "DockBottom";
+        public override string ContentId => "query-history";
+        public override ImageSource IconSource
         {
-            get { return "Query History"; }
+            get
+            {
+                var imgSourceConverter = new ImageSourceConverter();
+                return imgSourceConverter.ConvertFromInvariantString(
+                    @"pack://application:,,,/DaxStudio.UI;component/images/icon-database.png") as ImageSource;
+
+            }
         }
 
-        public string CurrentServer { get { return _currentDocument.ServerName; } }
-        public string CurrentDatabase { get { return _currentDocument.SelectedDatabase; } }
+
         public bool IsFilteredByServer
         {
-            get { return _isFilteredByServer; }
+            get => _isFilteredByServer;
             set
             {
                 _isFilteredByServer = value;
@@ -92,28 +90,52 @@ namespace DaxStudio.UI.ViewModels
         private bool HistoryFilter(object queryHistoryEvent)
         {
             var qhe = queryHistoryEvent as QueryHistoryEvent;
-            return (qhe.ServerName == _currentDocument.ServerName || !IsFilteredByServer)
-                && (qhe.DatabaseName == _currentDocument.SelectedDatabase || !IsFilteredByDatabase);
+            return qhe != null 
+                && (String.Compare( qhe.ServerName, CurrentDocument?.Connection?.ServerNameForHistory??string.Empty, StringComparison.OrdinalIgnoreCase)==0 || !IsFilteredByServer)
+                && (String.Compare(qhe.DatabaseName,  CurrentDocument?.Connection?.SelectedDatabase?.Caption??string.Empty, StringComparison.OrdinalIgnoreCase) == 0 || !IsFilteredByDatabase);
         }
 
-        public ICollectionView QueryHistory
+        public ICollectionView QueryHistory => _queryHistory;
+
+        public QueryHistoryEvent SelectedHistoryItem { get; set; }
+
+        public void QueryHistoryDoubleClick()
         {
-            get { return _queryHistory; }
+            QueryHistoryDoubleClick(SelectedHistoryItem);
         }
-
 
         public void QueryHistoryDoubleClick(QueryHistoryEvent queryHistoryEvent)
         {
-            _eventAggregator.PublishOnUIThread(new SendTextToEditor(queryHistoryEvent.QueryText));
-            //_eventAggregator.PublishOnUIThread(new SendTextToEditor(queryText));
+            if (queryHistoryEvent == null) return;  // exit here silently if no history event is selected
+            if (!string.IsNullOrEmpty(queryHistoryEvent.QueryBuilderJson))
+                _eventAggregator.PublishOnUIThread(new LoadQueryBuilderEvent(queryHistoryEvent.QueryBuilderJson));
+            else
+            {
+                var text = queryHistoryEvent.QueryText;
+                if (!string.IsNullOrWhiteSpace(queryHistoryEvent.Parameters)) text += $"\n{queryHistoryEvent.Parameters}";
+                _eventAggregator.PublishOnUIThread(new SendTextToEditor(text));
+            }
         }
 
         public void Handle(DocumentConnectionUpdateEvent message)
         {
-            QueryHistory.Filter = HistoryFilter;
-            QueryHistory.Refresh();
-            NotifyOfPropertyChange(() => CurrentServer);
-            NotifyOfPropertyChange(() => CurrentDatabase);
+            UpdateHistoryFilters();
+        }
+
+        private void UpdateHistoryFilters()
+        {
+            try
+            {
+                Application.Current.Dispatcher.Invoke(() => { 
+                    QueryHistory.Filter = HistoryFilter;
+                    QueryHistory.Refresh();
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, Common.Constants.LogMessageTemplate, nameof(QueryHistoryPaneViewModel), nameof(UpdateHistoryFilters), ex.Message);
+                CurrentDocument.OutputWarning("An error occurred while trying to update the filters on the Query History pane due to a connection change");
+            }
         }
 
         public void MouseDoubleClick(object sender)//, MouseButtonEventArgs e)
@@ -127,5 +149,11 @@ namespace DaxStudio.UI.ViewModels
         {
             NotifyOfPropertyChange(() => ShowTraceColumns);
         }
+
+        public void Handle(DatabaseChangedEvent message)
+        {
+            UpdateHistoryFilters();
+        }
+        
     }
 }

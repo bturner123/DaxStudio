@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ADOTabular.Interfaces;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,12 +10,12 @@ namespace ADOTabular
 {
     public class ADOTabularModelCollection:IEnumerable<ADOTabularModel>
     {
-        private readonly ADOTabularConnection _adoTabConn;
-        private readonly ADOTabularDatabase  _database;
-        public ADOTabularModelCollection(ADOTabularConnection adoTabConn, ADOTabularDatabase database)
+        private readonly IADOTabularConnection _adoTabConn;
+
+        public ADOTabularModelCollection(IADOTabularConnection adoTabConn, ADOTabularDatabase database)
         {
             _adoTabConn = adoTabConn;
-            _database = database;
+            Database = database;
             //_models = _adoTabConn.Visitor.Visit(this);
         }
 
@@ -32,15 +33,13 @@ namespace ADOTabular
 
         public void Add(ADOTabularModel model)
         {
+            if (model == null) throw new ArgumentNullException(nameof(model));
             if (_models == null)
                 _models = new SortedDictionary<string, ADOTabularModel>();
             _models.Add(model.Name, model);
         }
 
-        public ADOTabularDatabase Database
-        {
-            get { return _database; }
-        }
+        public ADOTabularDatabase Database { get; }
 
         public ADOTabularModel BaseModel
         {
@@ -48,15 +47,9 @@ namespace ADOTabular
             { return InternalModelCollection.Values.FirstOrDefault(m => !m.IsPerspective); }
         }
 
-        public ADOTabularModel this[string modelName]
-        {
-            get
-            {
-                return InternalModelCollection[modelName];
-                //return (from dr in GetModelsTable().Rows.Cast<DataRow>() where string.Compare(modelName, dr["CUBE_NAME"].ToString(), StringComparison.InvariantCultureIgnoreCase) == 0 select new ADOTabularModel(_adoTabConn, dr)).FirstOrDefault();
-                // todo - should we return a model not found exception instead of null?
-            }
-        }
+        public ADOTabularModel this[string modelName] => InternalModelCollection[modelName];
+        //return (from dr in GetModelsTable().Rows.Cast<DataRow>() where string.Compare(modelName, dr["CUBE_NAME"].ToString(), StringComparison.InvariantCultureIgnoreCase) == 0 select new ADOTabularModel(_adoTabConn, dr)).FirstOrDefault();
+        // todo - should we return a model not found exception instead of null?
 
         public ADOTabularModel this[int index]
         {
@@ -71,8 +64,8 @@ namespace ADOTabular
                     }
                     i++;
                 }
-                    
-                throw new IndexOutOfRangeException();
+
+                throw new ArgumentException($"Index of {index} is outside the range of this collection");
 
                 //return (from dr in GetModelsTable().Rows.Cast<DataRow>() where string.Compare(modelName, dr["CUBE_NAME"].ToString(), StringComparison.InvariantCultureIgnoreCase) == 0 select new ADOTabularModel(_adoTabConn, dr)).FirstOrDefault();
                 // todo - should we return a model not found exception instead of null?
@@ -99,6 +92,10 @@ namespace ADOTabular
 
             }   
         }
-        
+
+        public void Clear()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

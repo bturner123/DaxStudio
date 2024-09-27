@@ -1,14 +1,17 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace DaxStudio.Controls.DataGridFilter.Support
 {
     public static class Helper
     {
-        public static Dictionary<string, FilterData> CloneDictionaryHelper(Dictionary<string, FilterData> dict)
+        public static Dictionary<string, FilterData> CloneDictionaryHelper(Dictionary<string, FilterData> dictionary)
         {
+            if (dictionary == null) throw new ArgumentNullException(nameof(dictionary));
+
             var dictNew = new Dictionary<string, FilterData>();
 
-            foreach (KeyValuePair<string, FilterData> kvp in dict)
+            foreach (KeyValuePair<string, FilterData> kvp in dictionary)
             {
                 var data = new FilterData(
                     kvp.Value.Operator, kvp.Value.Type,

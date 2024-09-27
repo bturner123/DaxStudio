@@ -27,7 +27,11 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 ;AppId={{2DDF2B91-978D-4B47-AF1C-15E6C07ADEAD}
 AppId={{CE2CEA93-9DD3-4724-8FE3-FCBF0A0915C1}
-AppName={#MyAppName}
+#ifdef Preview
+AppName={#MyAppName} {#myAppMajor}.{#myAppMinor}.{#myAppRevision} ({#Preview})
+#else
+AppName={#MyAppName} {#myAppMajor}.{#myAppMinor}.{#myAppRevision}
+#endif
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -40,7 +44,7 @@ DefaultGroupName={#MyAppName}
 UseSetupLdr=Yes
 
 
-LicenseFile=eula.rtf
+LicenseFile=..\license.rtf
 ;OutputBaseFilename=DaxStudio_{#MyAppFileVersion}_setup
 OutputBaseFilename=DaxStudioPerUser_{#myAppMajor}_{#myAppMinor}_{#myAppRevision}_setup
 OutputDir=..\package
@@ -64,6 +68,15 @@ DisableProgramGroupPage=auto
 
 UninstallDisplayIcon={app}\daxstudio.exe
 
+[Messages]
+; define wizard title and tray status msg
+; both are normally defined in innosetup's default.isl (install folder)
+#ifdef Preview
+SetupWindowTitle={#MyAppName} {#myAppMajor}.{#myAppMinor}.{#myAppRevision} {#Preview}
+#else
+SetupWindowTitle={#MyAppName} {#myAppMajor}.{#myAppMinor}.{#myAppRevision}
+#endif
+
 [Languages]
 ;Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
@@ -74,19 +87,19 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\release\DaxStudio.exe"; DestDir: "{app}"; Flags: ignoreversion; Components: Core
-Source: "..\release\DaxStudio.vsto"; DestDir: "{app}"; Flags: ignoreversion; Components: Excel
-Source: "..\release\DaxStudio.dll"; DestDir: "{app}"; Flags: ignoreversion; Components: Excel
-Source: "..\release\DaxStudio.dll.manifest"; DestDir: "{app}"; Flags: ignoreversion; Components: Excel
+Source: "..\release\bin\DaxStudio.vsto"; DestDir: "{app}"; Flags: ignoreversion; Components: Excel
+Source: "..\release\bin\DaxStudio.dll"; DestDir: "{app}"; Flags: ignoreversion; Components: Excel
+Source: "..\release\bin\DaxStudio.dll.manifest"; DestDir: "{app}"; Flags: ignoreversion; Components: Excel
 Source: "..\release\*"; DestDir: "{app}"; Flags: replacesameversion recursesubdirs createallsubdirs ignoreversion; Components: Core; Excludes: "*.pdb,*.xml,DaxStudio.vshost.*,*.config,DaxStudio.dll,DaxStudio.exe,DaxStudio.vsto"
 
 ;Standalone configs
-Source: "..\release\DaxStudio.exe.2016.config"; DestDir: "{app}"; DestName: "DaxStudio.exe.config"; Flags: ignoreversion; Components: Core; Check: Not IsComponentSelected('ASAzureSupport')
-Source: "..\release\DaxStudio.exe.2017.config"; DestDir: "{app}"; DestName: "DaxStudio.exe.config"; Flags: ignoreversion; Components: Core; Check: IsComponentSelected('ASAzureSupport')
+;Source: "..\release\DaxStudio.exe.2016.config"; DestDir: "{app}"; DestName: "DaxStudio.exe.config"; Flags: ignoreversion; Components: Core; Check: Not IsComponentSelected('ASAzureSupport')
+;Source: "..\release\DaxStudio.exe.2017.config"; DestDir: "{app}"; DestName: "DaxStudio.exe.config"; Flags: ignoreversion; Components: Core; Check: IsComponentSelected('ASAzureSupport')
 
 ;Excel Addin configs
-Source: "..\release\DaxStudio.dll.config"; DestDir: "{app}"; DestName: "DaxStudio.dll.config"; Flags: ignoreversion; Components: Excel; Check: Not IsComponentSelected('ASAzureSupport') And IsExcel2010Installed
-Source: "..\release\DaxStudio.dll.2016.config"; DestDir: "{app}"; DestName: "DaxStudio.dll.config"; Flags: ignoreversion; Components: Excel; Check: Not IsComponentSelected('ASAzureSupport') And Not IsExcel2010Installed
-Source: "..\release\DaxStudio.dll.2017.config"; DestDir: "{app}"; DestName: "DaxStudio.dll.config"; Flags: ignoreversion; Components: Excel; Check: IsComponentSelected('ASAzureSupport') 
+Source: "..\release\bin\DaxStudio.dll.config"; DestDir: "{app}"; DestName: "DaxStudio.dll.config"; Flags: ignoreversion; Components: Excel; Check: Not IsComponentSelected('ASAzureSupport') And IsExcel2010Installed
+;Source: "..\release\bin\DaxStudio.dll.2016.config"; DestDir: "{app}"; DestName: "DaxStudio.dll.config"; Flags: ignoreversion; Components: Excel; Check: Not IsComponentSelected('ASAzureSupport') And Not IsExcel2010Installed
+;Source: "..\release\bin\DaxStudio.dll.2017.config"; DestDir: "{app}"; DestName: "DaxStudio.dll.config"; Flags: ignoreversion; Components: Excel; Check: IsComponentSelected('ASAzureSupport') 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
@@ -115,10 +128,10 @@ Filename: "eventcreate"; Parameters: "/ID 1 /L APPLICATION /T INFORMATION  /SO D
 #include "scripts\products\excelversion.iss"
 #include "scripts\products\dotnetfx45.iss"
 #include "scripts\products\dotnetassembly.iss"
-#include "scripts\products\sql2016adomdclient.iss"
-#include "scripts\products\sql2016amo.iss"
-#include "scripts\products\sql2017adomdclient.iss"
-#include "scripts\products\sql2017amo.iss"
+;#include "scripts\products\sql2016adomdclient.iss"
+;#include "scripts\products\sql2016amo.iss"
+;#include "scripts\products\sql2017adomdclient.iss"
+;#include "scripts\products\sql2017amo.iss"
 
 [UninstallRun]
 ;Filename: {code:GetV4NetDir}ngen.exe; Parameters: "uninstall ""{app}\{#MyAppExeName}""";  StatusMsg: Removing native images and dependencies ...; Flags: runhidden; 
@@ -161,6 +174,11 @@ Name: "Excel"; Description: "Excel Addin"; Types: full
 Name: "Core"; Description: "DaxStudio Core (includes connectivity to SSAS Tabular)"; Types: full standalone custom; Flags: fixed
 Name: "ASAzureSupport"; Description: "Ensures that the pre-requisites for Analysis Services Azure are installed"
 
+; Make sure that local copies of the Excel files do not exist
+[InstallDelete]
+Type: files; Name: "{app}\Microsoft.Excel.Amo.dll"
+Type: files; Name: "{app}\Microsoft.Excel.AdomdClient.dll"
+
 [Code]
 // If there is a command-line parameter "skipdependencies=true", don't check for them }
 function ShouldInstallDependencies(): Boolean;
@@ -180,7 +198,7 @@ begin
 
     // in case the target is 3.5, replace 'v4' with 'v3.5'
     // for other info, check out this link 
-    // http://stackoverflow.com/questions/199080/how-to-detect-what-net-framework-versions-and-service-packs-are-installed
+    // https://stackoverflow.com/questions/199080/how-to-detect-what-net-framework-versions-and-service-packs-are-installed
     regkey := 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full'
 
     RegQueryStringValue(HKLM, regkey, 'InstallPath', regval);
@@ -428,7 +446,7 @@ begin
   Result := False; // Default value - assume 32-bit unless proven otherwise.
   // RegQueryStringValue second param is '' to get the (default) value for the key
   // with no sub-key name, as described at
-  // http://stackoverflow.com/questions/913938/
+  // https://stackoverflow.com/questions/913938/
   if IsWin64() and RegQueryStringValue(HKEY_LOCAL_MACHINE,
       'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe',
       '', excelPath) then begin

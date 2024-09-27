@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.IO.Packaging;
 
 namespace DaxStudio.UI.Interfaces
 {
@@ -10,5 +6,10 @@ namespace DaxStudio.UI.Interfaces
     {
         void Save(string filename);
         void Load(string filename);
+
+        string GetJson();
+        void LoadJson(string json);
+        void SavePackage(Package package);
+        void LoadPackage(Package package);
     }
 }

@@ -1,15 +1,15 @@
 ﻿using System.Collections.Generic;
 using System.Data;
 using System.Collections;
-using System;
+using ADOTabular.Interfaces;
 
 namespace ADOTabular
 {
     public class ADOTabularDynamicManagementViewCollection : IEnumerable<ADOTabularDynamicManagementView>
     {
         private DataSet _dsDmvs;
-        private readonly ADOTabularConnection _adoTabConn;
-        public ADOTabularDynamicManagementViewCollection(ADOTabularConnection adoTabConn)
+        private readonly IADOTabularConnection _adoTabConn;
+        public ADOTabularDynamicManagementViewCollection(IADOTabularConnection adoTabConn)
         {
             _adoTabConn = adoTabConn;
 
@@ -24,7 +24,7 @@ namespace ADOTabular
                     // TODO - on error should we return an empty dataset?
                     _dsDmvs = _adoTabConn.GetSchemaDataSet("DISCOVER_SCHEMA_ROWSETS");
                 }
-                catch (Exception)
+                catch 
                 {
                     return new DataTable("Emtpy");
                 }
@@ -35,9 +35,9 @@ namespace ADOTabular
 
         public IEnumerator<ADOTabularDynamicManagementView> GetEnumerator()
         {
-            foreach (DataRow dr in GetDmvTable().Rows)
+            using var dmvTable = GetDmvTable();
+            foreach (DataRow dr in dmvTable.Rows)
             {
-                //yield return new ADOTabularDatabase(_adoTabConn, dr["CATALOG_NAME"].ToString());//, dr);
                 yield return new ADOTabularDynamicManagementView(dr);
             }
         }

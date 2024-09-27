@@ -33,13 +33,13 @@ If you have issues running Dax Studio there are some [logging settings](troubles
 
 There is also a small utility called [DAX Studio Checker](troubleshooting/daxstudio-checker) which can help check the configuration of your machine. The links to the 3 external dependencies which Dax Studio requires are listed on the [Installer page](installation/single-installer). 
 
-If you get the error _"Not loaded. A runtime error occurred during the loading of the COM Add-in"_ for the Excel add-in you can try enabling the environment variable as detailed in these instructions [http://www.oneplacesolutions.com/support/0053.html](http://www.oneplacesolutions.com/support/0053.html) to display a more detailed error message
+If you get the error _"Not loaded. A runtime error occurred during the loading of the COM Add-in"_ for the Excel add-in you can try enabling the environment variable as detailed in these instructions [https://www.oneplacesolutions.com/support/0053.html](https://www.oneplacesolutions.com/support/0053.html) to display a more detailed error message
 
 ## Credits
 Dax Studio is using the following open source libraries, without these it would not exist in it's current state:
 - [AvalonEdit](http://avalonedit.net/) - main editor control
-- [AvalonDock](http://wpftoolkit.codeplex.com) (part of Xceed WPF Toolkit - Community Edition) - Docking UI
-- [Caliburn.Micro](http://caliburnmicro.codeplex.com) - MVVM framework
-- [Fluent Ribbon](http://fluent.codeplex.com) - Ribbon control and Office 2013 window style
+- [AvalonDock](https://github.com/xceedsoftware/wpftoolkit) (part of Xceed WPF Toolkit - Community Edition) - Docking UI
+- [Caliburn.Micro](https://caliburnmicro.com/) - MVVM framework
+- [Fluent Ribbon](https://github.com/fluentribbon/Fluent.Ribbon) - Ribbon control and Office 2013 window style
 - [Hardcodet NotifyIcon](http://www.hardcodet.net/wpf-notifyicon) - version update notification messages
 

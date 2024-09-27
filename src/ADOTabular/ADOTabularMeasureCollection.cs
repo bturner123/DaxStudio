@@ -1,5 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Collections;
+using System;
+using ADOTabular.Interfaces;
 
 //using Microsoft.AnalysisServices.AdomdClient;
 
@@ -8,24 +10,23 @@ namespace ADOTabular
 
     public class ADOTabularMeasureCollection: IEnumerable<ADOTabularMeasure>
     {
-        private readonly ADOTabularTable _table;
-        private readonly ADOTabularConnection _adoTabConn;
-        public ADOTabularMeasureCollection(ADOTabularConnection adoTabConn, ADOTabularTable table)
+        private readonly IADOTabularConnection _adoTabConn;
+        public ADOTabularMeasureCollection(IADOTabularConnection adoTabConn, ADOTabularTable table)
         {
-            _table = table;
-            _adoTabConn = adoTabConn;
+            Table = table;
+            _adoTabConn = adoTabConn ?? throw new ArgumentNullException(nameof(adoTabConn));
+
             if (_measures == null)
             {
                 _measures = _adoTabConn.Visitor.Visit(this);
             }
         }
 
-        public ADOTabularTable Table {
-            get { return _table; }
-        }
+        public ADOTabularTable Table { get; }
 
         public void Add(ADOTabularMeasure column)
         {
+            if (column == null) throw new ArgumentNullException(nameof(column));
             _measures.Add(column.Name,column);
         }
 
@@ -43,8 +44,8 @@ namespace ADOTabular
 
         public ADOTabularMeasure this[string index]
         {
-            get { return _measures[index]; }
-            set { _measures[index] = value; }
+            get => _measures[index];
+            set => _measures[index] = value;
         }
 
         public ADOTabularMeasure this[int index]
@@ -61,7 +62,7 @@ namespace ADOTabular
         {
             foreach (var c in _measures)
             {
-                if (c.Value.InternalReference.Equals(referenceName, System.StringComparison.InvariantCultureIgnoreCase))
+                if (c.Value.InternalReference.Equals(referenceName, StringComparison.OrdinalIgnoreCase))
                 {
                     return c.Value;
                 }
@@ -75,8 +76,8 @@ namespace ADOTabular
                 // rownumber cannot be referenced in queries so we exclude it from the collection
                 if (adoTabularColumn.Contents == "RowNumber") continue;
                 // the KPI components are available through the parent KPI object
-                if (adoTabularColumn.ColumnType == ADOTabularColumnType.KPIGoal) continue;
-                if (adoTabularColumn.ColumnType == ADOTabularColumnType.KPIStatus) continue;
+                if (adoTabularColumn.ObjectType == ADOTabularObjectType.KPIGoal) continue;
+                if (adoTabularColumn.ObjectType == ADOTabularObjectType.KPIStatus) continue;
 
                 yield return adoTabularColumn;
             }

@@ -1,25 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Collections.Generic;
 
 namespace ADOTabular
 {
+#pragma warning disable CA1815 // Override equals and operator equals on value types
     public struct KpiDetails
+#pragma warning restore CA1815 // Override equals and operator equals on value types
     {
-        public string Goal;
-        public string Status;
-        public string Graphic;
+        public string Goal { get; set; }
+        public string Status { get; set; }
+        public string Graphic { get; set; }
+
         public bool IsBlank()
         {
             return string.IsNullOrEmpty(Goal) && string.IsNullOrEmpty(Status) && string.IsNullOrEmpty(Graphic);
         }
+
+
     }
     public class ADOTabularKpi: ADOTabularColumn
     {
         private KpiDetails _kpi;
         public ADOTabularKpi( ADOTabularTable table,string internalName, string name, string caption,  string description,
-                                bool isVisible, ADOTabularColumnType columnType, string contents, KpiDetails kpi)
+                                bool isVisible, ADOTabularObjectType columnType, string contents, KpiDetails kpi)
         :base(table, internalName,name, caption,description,isVisible,columnType,contents)
         {
             _kpi = kpi;

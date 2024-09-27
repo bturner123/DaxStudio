@@ -34,13 +34,21 @@ namespace DaxStudio.UI.Events
         public int Row { get; private set; }
         public int Column { get; private set; }
         public bool LocationSet { get; private set; }
-        public string Duration {
+        public double DurationMs { get { return _durationMs; } }
+        public string DurationString {
             get
             {
                 if (double.IsNaN(_durationMs ))
                     return string.Empty;
                 return _durationMs.ToString("#,##0");
             }
+        }
+
+        public string DurationTooltip { 
+            get {
+                if (double.IsNaN( DurationMs )) return string.Empty;
+                return $"{DurationString} ms  ({TimeSpan.FromMilliseconds(DurationMs):h\\:mm\\:ss\\.fff})"; 
+            } 
         }
 
         public void MessageDoubleClick()

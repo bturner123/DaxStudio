@@ -1,36 +1,33 @@
-﻿using System;
-using System.Text.RegularExpressions;
+﻿using ADOTabular.Interfaces;
+using System;
+using System.Globalization;
 
 namespace ADOTabular
 {
     public class ADOTabularDatabase
     {
-        private readonly ADOTabularConnection _adoTabConn;
-        private string _databaseName;
-        private readonly string _databaseId;
         private ADOTabularModelCollection _modelColl;
-        private DateTime? _lastUpdate = null;
-        private string _compatLevel;
 
-        public ADOTabularDatabase(ADOTabularConnection adoTabConn, string databaseName, string databaseId, DateTime lastUpdate, string compatLevel)
+        public ADOTabularDatabase(IADOTabularConnection adoTabConn, string databaseName, string databaseId, DateTime lastUpdate, string compatLevel, string roles)
         {
-            _adoTabConn = adoTabConn;
-            _databaseName = databaseName;
-            _databaseId = databaseId;
-            _lastUpdate = lastUpdate;
-            _compatLevel = compatLevel;
+            Connection = adoTabConn;
+            Name = databaseName;
+            Id = databaseId;
+            LastUpdate = lastUpdate;
+            CompatibilityLevel = compatLevel;
+            Roles = roles;
         }
 
         public bool HasSchemaChanged()
         {
             try
             {
-                var ddColl = _adoTabConn.Databases.GetDatabaseDictionary(_adoTabConn.SPID, true);
+                var ddColl = Connection.Databases.GetDatabaseDictionary(Connection.SPID, true);
                 if (ddColl.Count == 0) return false; // no databases on server
-                var dd = ddColl[_databaseName];
-                if (dd.LastUpdate > _lastUpdate)
+                var dd = ddColl[Name];
+                if (dd.LastUpdate > LastUpdate)
                 {
-                    _lastUpdate = dd.LastUpdate;
+                    LastUpdate = dd.LastUpdate;
                     return true;
                 }
             }
@@ -39,45 +36,36 @@ namespace ADOTabular
                 // do nothing - probably trying to check for changes while query is still running
                 System.Diagnostics.Debug.WriteLine("HasSchemaChanged Error: {0}", ex.Message);
             }
-            catch (Exception)
-            {
-                throw;
-            }
+
             return false;
         }
 
-        public string Id
-        {
-            get { return _databaseId; }
-        }
-        
-        public string Name
-        {
-            get { return _databaseName; }
-            //get { return _adoTabConn.PowerBIFileName == string.Empty? _databaseName: _adoTabConn.PowerBIFileName; }
-        }
+        public string Culture { get; internal set; } = string.Empty;
+        public string Id { get; }
+        public DateTime LastUpdate { get; internal set; } = DateTime.MinValue;
 
-        public ADOTabularModelCollection Models
-        {
-            get { return _modelColl ?? (_modelColl = new ADOTabularModelCollection(_adoTabConn, this)); }
+        public string Name { get;
+        //get { return _adoTabConn.PowerBIFileName == string.Empty? _databaseName: _adoTabConn.PowerBIFileName; }
         }
+        private string _caption = string.Empty;
+        public string Caption { get => string.IsNullOrEmpty(_caption) ? Name : _caption; set { _caption = value; } }
+        public ADOTabularModelCollection Models => _modelColl ??= new ADOTabularModelCollection(Connection, this);
 
-        public ADOTabularConnection Connection
-        {
-            get { return _adoTabConn; }
-        }
+        public IADOTabularConnection Connection { get; }
 
-        public string CompatibilityLevel
-        {
-            get
-            {
-                return _compatLevel;
+        public string CompatibilityLevel { get; }
+
+        public string Roles { get; }
+
+        // if the list of roles for the database contains
+        public bool IsAdmin { get {
+                return Roles.Contains("*"); 
             }
         }
 
         public void ClearCache()
         {
-            _adoTabConn.ExecuteCommand(String.Format(@"
+            Connection.ExecuteCommand(string.Format(CultureInfo.InvariantCulture, @"
                 <Batch xmlns=""http://schemas.microsoft.com/analysisservices/2003/engine"">
                    <ClearCache>
                      <Object>
@@ -85,7 +73,8 @@ namespace ADOTabular
                     </Object>
                    </ClearCache>
                  </Batch>
-                ", _adoTabConn.Database.Id));
+                ", !String.IsNullOrEmpty(Connection.Database.Id) ? Connection.Database.Id : Connection.Database.Name));
+                  // 2018-02-20 Hotfix by MarcoRusso - the Database.Id is an empty string, fixed with Database.Name, but it should be investigated why the Id is empty, then remove this hotfix
         }
 
         //private Regex daxColumnRegex = new Regex(@"'?(?<table>.*)'?\[(?<column>[^\]]*)\]", RegexOptions.Compiled);
@@ -98,12 +87,8 @@ namespace ADOTabular
 
         //}
 
-        public MetadataImages MetadataImage
-        {
-            get { return MetadataImages.Database; }
-        }
+        public static MetadataImages MetadataImage => MetadataImages.Database;
 
-        
 
     }
 }

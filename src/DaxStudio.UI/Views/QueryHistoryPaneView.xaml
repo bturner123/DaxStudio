@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="DaxStudio.UI.Views.QueryHistoryPaneView"
+﻿<controls:ZoomableUserControl x:Class="DaxStudio.UI.Views.QueryHistoryPaneView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
@@ -9,6 +9,7 @@
              xmlns:controls="clr-namespace:DaxStudio.UI.Controls"
              xmlns:conv="clr-namespace:DaxStudio.UI.Converters"
              xmlns:clr="clr-namespace:System;assembly=mscorlib"
+             xmlns:fa="http://schemas.fontawesome.io/icons/"
              xmlns:markup="clr-namespace:DaxStudio.UI.MarkupExtensions"
              mc:Ignorable="d" 
              d:DesignHeight="300" d:DesignWidth="700">
@@ -16,10 +17,6 @@
 
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <conv:VisbilityToBooleanConverter x:Key="VisibilityToBoolConverter"/>
-        <conv:RowMaxHeightVisibilityConverter x:Key="RowMaxHeightVisibilityConverter"/>
-        <conv:CappedHeightConverter x:Key="CappedHeightConverter"/>
-        <conv:CappedRowHeightConverter x:Key="CappedRowHeightConverter"/>
-        <conv:MaxTextLinesConverter x:Key="MaxTextLinesConverter"/>
         <conv:NegativeColourConverter x:Key="NegativeColourConverter"/>
 
         <BitmapImage x:Key="FilterIcon" UriSource="..\images\QueryHistory\filter_trans.png"></BitmapImage>
@@ -171,7 +168,7 @@
             <ScrollViewer VerticalScrollBarVisibility="Auto"
                               Margin="0">
                 <!--   Height="{Binding ElementName=QueryText ,Path=ActualHeight,Converter={StaticResource CappedHeightConverter}, ConverterParameter='55'}"-->
-                <DataGridCell Margin="0" Padding="0" 
+                <Border Margin="0" Padding="0" 
                               cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
                     <TextBlock x:Name="QueryText"
                         Text="{Binding Path=QueryText,Mode=OneWay}"  
@@ -181,7 +178,7 @@
                         ToolTip="{Binding QueryText}">
                     </TextBlock>
                     
-                </DataGridCell>
+                </Border>
             </ScrollViewer>
                 
         </DataTemplate>
@@ -197,9 +194,11 @@
         
         <controls:DataGridNoContextMenu x:Name="QueryHistory" 
                 CanUserSortColumns="True"
-                ClipboardCopyMode="IncludeHeader"
+                ClipboardCopyMode="ExcludeHeader"
                 SelectionMode="Single"   
                 SelectionUnit="FullRow"
+                SelectedItem="{Binding SelectedHistoryItem}"
+                cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick()]"
                 CanUserAddRows="False"
                 CanUserDeleteRows="False"
                 VerticalGridLinesBrush="WhiteSmoke" 
@@ -229,18 +228,18 @@
             </DataGrid.ContextMenu>
         
             <DataGrid.Columns>
-                <DataGridTemplateColumn Header="Start Time" SortDirection="Descending">
+                <DataGridTemplateColumn SortMemberPath="StartTime" Header="Start Time" SortDirection="Descending">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <DataGridCell cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
-                                <DataGridCell.ContextMenu>
+                            <Border cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
+                                <Border.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="Hello"/>
                                     </ContextMenu>
-                                </DataGridCell.ContextMenu>
+                                </Border.ContextMenu>
                                 <TextBlock Text="{Binding Path=StartTime,Mode=OneWay, StringFormat=\{0:g\}}"  VerticalAlignment="Top" HorizontalAlignment="Left"
                                            TextTrimming="CharacterEllipsis" IsEnabled="False" />
-                            </DataGridCell>
+                            </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                     
@@ -249,7 +248,7 @@
                 <DataGridTemplateColumn SortMemberPath="RowCount" Header="Rows" IsReadOnly="True" HeaderStyle="{StaticResource ColumnHeaderRightAlign}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <DataGridCell cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
+                            <Border cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
                                 <TextBlock
                                     Text="{Binding Path=RowCount,Mode=OneWay,StringFormat=\{0:#\,###;n/a;0\}}"  
                                     VerticalAlignment="Top" 
@@ -257,7 +256,7 @@
                                     TextTrimming="CharacterEllipsis"
                                     TextAlignment="Right"
                                 />
-                            </DataGridCell>
+                            </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -270,9 +269,9 @@
                     </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <DataGridCell cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
+                            <Border cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
                                 <TextBlock Text="{Binding Path=ClientDurationMs,Mode=OneWay,StringFormat=\{0:#\,### ms\}}"  VerticalAlignment="Top" HorizontalAlignment="right" TextTrimming="CharacterEllipsis" />
-                            </DataGridCell>
+                            </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -286,11 +285,11 @@
                     </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <DataGridCell cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
+                            <Border cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
                                 <TextBlock Text="{Binding Path=ServerDurationMs,Mode=OneWay,StringFormat=\{0:#\,### ms;n/a;n/a\}}"  VerticalAlignment="Top" HorizontalAlignment="right"
                                        Foreground="{Binding ServerDurationMs, Converter={StaticResource NegativeColourConverter}, ConverterParameter={StaticResource NaColour}}"
                                            TextTrimming="CharacterEllipsis"/>
-                            </DataGridCell>
+                            </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -304,12 +303,12 @@
                     </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <DataGridCell cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
+                            <Border cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
                                 <TextBlock Text="{Binding Path=FEDurationMs,Mode=OneWay,StringFormat=\{0:#\,### ms;n/a;n/a\}}"  
                                        VerticalAlignment="Top" HorizontalAlignment="right"
                                        Foreground="{Binding FEDurationMs, Converter={StaticResource NegativeColourConverter}, ConverterParameter={StaticResource NaColour}}"
                                            TextTrimming="CharacterEllipsis"/>
-                            </DataGridCell>
+                            </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -324,16 +323,16 @@
                     </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <DataGridCell cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
+                            <Border cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
                                 <TextBlock Text="{Binding Path=SEDurationMs,Mode=OneWay,StringFormat=\{0:#\,### ms;n/a;n/a\}}"  VerticalAlignment="Top" HorizontalAlignment="right"
                                        Foreground="{Binding SEDurationMs, Converter={StaticResource NegativeColourConverter}, ConverterParameter={StaticResource NaColour}}"
                                            TextTrimming="CharacterEllipsis"/>
-                            </DataGridCell>
+                            </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn  HeaderStyle="{StaticResource DataGridColumnHeaderWithButtonStyle }">
+                <DataGridTemplateColumn  HeaderStyle="{StaticResource DataGridColumnHeaderWithButtonStyle }" ClipboardContentBinding="{Binding ServerName}">
                     
                     <DataGridTemplateColumn.HeaderTemplate>
                         <DataTemplate>
@@ -350,17 +349,19 @@
                     </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <DataGridCell cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
+                            <Border cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]"
+                                          >
                                 <TextBlock Text="{Binding Path=ServerName,Mode=OneWay}"  
                                            VerticalAlignment="Top" 
                                            HorizontalAlignment="Left"
                                            TextTrimming="CharacterEllipsis"/>
-                            </DataGridCell>
+                            </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 
-                <DataGridTemplateColumn  HeaderStyle="{StaticResource DataGridColumnHeaderWithDatabaseFilter }" >
+                <DataGridTemplateColumn  HeaderStyle="{StaticResource DataGridColumnHeaderWithDatabaseFilter }" 
+                                         ClipboardContentBinding="{Binding DatabaseName}">
                     <DataGridTemplateColumn.HeaderTemplate>
                         <DataTemplate>
                             <Grid Width="{Binding Width, 
@@ -376,20 +377,30 @@
                     </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <DataGridCell 
+                            <Border 
                                 cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
                                 <TextBlock Text="{Binding Path=DatabaseName,Mode=OneWay}"  
                                            VerticalAlignment="Top" 
                                            HorizontalAlignment="Left"
                                            TextTrimming="CharacterEllipsis"/>
-                            </DataGridCell>
+                            </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-
-                <DataGridTemplateColumn Header="Query" Width="*" CellTemplate="{StaticResource QueryTextCell}" />
+                <DataGridTemplateColumn >
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border cal:Message.Attach="[Event MouseDoubleClick] = [Action QueryHistoryDoubleClick($datacontext)]">
+                                <fa:FontAwesome Icon="{Binding TypeIcon}" ToolTip="{Binding TypeTooltip}" Margin="0,2" />
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Query" Width="*" 
+                                        ClipboardContentBinding="{Binding QueryText}"
+                                        CellTemplate="{StaticResource QueryTextCell}" />
             </DataGrid.Columns>
         </controls:DataGridNoContextMenu>
 
     </Grid>
-</UserControl>
+</controls:ZoomableUserControl>

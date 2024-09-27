@@ -1,10 +1,6 @@
-﻿using DaxStudio.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using ADOTabular.AdomdClientWrappers;
+﻿using System;
+using ADOTabular.Enums;
+using DaxStudio.UI.Interfaces;
 
 namespace DaxStudio.Tests.Mocks
 {
@@ -56,6 +52,11 @@ namespace DaxStudio.Tests.Mocks
             {
                 throw new NotImplementedException();
             }
+        }
+
+        public void Dispose()
+        {
+            throw new NotImplementedException();
         }
     }
 }

@@ -1,6 +1,7 @@
 namespace DaxStudio.UI.Model
 {
     using Caliburn.Micro;
+    using DaxStudio.Common;
     using DaxStudio.Interfaces;
     using DaxStudio.UI.Events;
     using DaxStudio.UI.Utils;
@@ -19,26 +20,21 @@ namespace DaxStudio.UI.Model
 
         //private const int CHECK_EVERY_DAYS = 3;
         private const int CHECK_SECONDS_AFTER_STARTUP = 15;
+        private const int CHECK_EVERY_HOURS = 24;
         
-        private BackgroundWorker worker = new BackgroundWorker();
+        private readonly BackgroundWorker worker = new BackgroundWorker();
         private readonly IEventAggregator _eventAggregator;
         private WebRequestFactory _webRequestFactory;
-        private string _downloadUrl = "https://daxstudio.org/downloads";
+        private Uri _downloadUrl = new Uri( Constants.DownloadUrl);
         private readonly IGlobalOptions _globalOptions;
 
-        /// <summary>
-        /// The latest version from GitHub. Use a class field to prevent repeat calls, this acts as a cache.
-        /// </summary>
-        private Version _serverVersion;
-
         private Version _productionVersion;
-        private Version _prereleaseVersion;
-        private string _productionDownloadUrl;
-        private string _prereleaseDownloadUrl;
+        private Uri _productionDownloadUrl;
         private string _serverVersionType;
-
+        private bool _isCheckRunning;
+        private bool _isAutomaticCheck;
         /// <summary>
-        /// Initializes a new instance of the <see cref="VersionCheckPlugin"/> class.
+        /// Initializes a new instance of the <see cref="VersionCheck"/> class.
         /// </summary>
         /// <param name="eventAggregator">A reference to the event aggregator so we can publish an event when a new version is found.</param>
         [ImportingConstructor]
@@ -47,33 +43,79 @@ namespace DaxStudio.UI.Model
             _eventAggregator = eventAggregator;
             
             _globalOptions = globalOptions;
-            if (Enabled) // && LastVersionCheck.AddDays(CHECK_EVERY_DAYS) < DateTime.Today)
+
+            if (_globalOptions.BlockVersionChecks)
             {
-                worker.DoWork += new DoWorkEventHandler(worker_DoWork);
+                UpdateCompleteCallback?.Invoke(this,null);
+                return;
+            }
+
+            worker.DoWork += new DoWorkEventHandler(BackgroundGetGitHubVersion);
+            if (Enabled && LastVersionCheck.AddHours(CHECK_EVERY_HOURS) < DateTime.UtcNow)
+            {
+                _isAutomaticCheck = true;
                 worker.RunWorkerAsync();
             }
         }
 
-        public bool Enabled
+        public bool Enabled =>  true;
+            
+        private void BackgroundGetGitHubVersion(object sender, DoWorkEventArgs e)
         {
-            get
+            try
             {
-                return true;
-            }
-        }
+                Log.Information(Common.Constants.LogMessageTemplate, nameof(VersionCheck), nameof(BackgroundGetGitHubVersion), "Starting Background Version Check");
+                _isCheckRunning = true;
+                UpdateStartingCallback?.Invoke(this, null);
 
-        private void worker_DoWork(object sender, DoWorkEventArgs e)
-        {
-            System.Threading.Thread.Sleep(CHECK_SECONDS_AFTER_STARTUP.SecondsToMilliseconds()); //give DaxStudio a little time to get started up so we don't impede work people are doing with this version check
-            LastVersionCheck = DateTime.Now;
-            CheckVersion();
+                //give DaxStudio a little time to get started up so we don't impede work people are doing with this version check
+                if (_isAutomaticCheck)
+                {
+                    System.Threading.Thread.Sleep(CHECK_SECONDS_AFTER_STARTUP.SecondsToMilliseconds());
+                    _isAutomaticCheck = false;
+                }
+                LastVersionCheck = DateTime.UtcNow;
+
+                //VersionStatus = "Checking for updates...";
+                //NotifyOfPropertyChange(() => VersionStatus);
+                try
+                {
+                    if (_webRequestFactory == null)
+                    {
+                        Log.Information(Common.Constants.LogMessageTemplate, nameof(VersionCheck), nameof(BackgroundGetGitHubVersion), "Creating WebRequestFactory");
+                        _webRequestFactory = WebRequestFactory.CreateAsync(_globalOptions, _eventAggregator).Result;
+                    }
+                    Log.Information(Common.Constants.LogMessageTemplate, nameof(VersionCheck), nameof(BackgroundGetGitHubVersion), "Starting Population of version information from Github");
+                    PopulateServerVersionFromGithub(_webRequestFactory);
+                    Log.Information(Common.Constants.LogMessageTemplate, nameof(VersionCheck), nameof(BackgroundGetGitHubVersion), "Updating Version Status");
+
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("{class} {method} {error}", "VersionCheck", "worker_DoWork", ex.Message);
+                    _eventAggregator.PublishOnUIThread(new ErrorEventArgs(ex));
+                }
+
+                CheckVersion();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, Common.Constants.LogMessageTemplate, nameof(VersionCheck), nameof(BackgroundGetGitHubVersion), ex.Message);
+                _eventAggregator.PublishOnUIThread(new OutputMessage(MessageType.Warning, $"Error while checking for updates: {ex.Message}"));
+            }
+            finally
+            {
+                _isCheckRunning = false;
+                UpdateCompleteCallback?.Invoke(this, null);
+            }
+            Log.Information(Common.Constants.LogMessageTemplate, nameof(VersionCheck), nameof(BackgroundGetGitHubVersion), "Finished Background Version Check");
         }
 
         public void CheckVersion()
         {
             try
             {
-                if (!VersionIsLatest && ServerVersion != DismissedVersion)
+                if (!VersionIsLatest && ServerVersion != DismissedVersion && !ServerVersion.IsNotSet())
                 {
                     _eventAggregator.PublishOnUIThread(new NewVersionEvent(ServerVersion, DownloadUrl));
                 }
@@ -90,124 +132,47 @@ namespace DaxStudio.UI.Model
         {
             get
             {
-                return RegistryHelper.GetLastVersionCheck();
+                if (_globalOptions.LastVersionCheckUTC == DateTime.MinValue) _globalOptions.LastVersionCheckUTC = DateTime.UtcNow;
+                return _globalOptions.LastVersionCheckUTC;
             }
-            set
-            {
-                RegistryHelper.SetLastVersionCheck(value);
-            }
+            set => _globalOptions.LastVersionCheckUTC = value;
         }
 
 
         public Version DismissedVersion
         {
-            get
-            {
-                return Version.Parse(RegistryHelper.GetDismissedVersion());
-            }
-            set
-            {
-                RegistryHelper.SetDismissedVersion(value.ToString());
-            }
+            get => _globalOptions.DismissedVersion;
+            set => _globalOptions.DismissedVersion = value;
         }
 
-        public Version LocalVersion
-        {
-            get
-            {
-                return typeof(VersionCheck).Assembly.GetName().Version;
-            }
-        }
+        public Version LocalVersion => typeof(VersionCheck).Assembly.GetName().Version;
+         
+        public int LocalBuild =>  typeof(VersionCheck).Assembly.GetName().Version.Build;
 
-        public int LocalBuild
-        {
-            get
-            {
-                return typeof(VersionCheck).Assembly.GetName().Version.Build;
-            }
-        }
+        public Version ServerVersion => _globalOptions.CurrentDownloadVersion;
 
-        public Version ServerVersion
-        {
-            get
-            {
-                if (this._serverVersion != null)
-                {
-                    return this._serverVersion;
-                }
-
-                VersionStatus = "Checking for updates...";
-                NotifyOfPropertyChange(() => VersionStatus);
-                try
-                {
-                    if (_webRequestFactory == null) {
-                        _webRequestFactory = WebRequestFactory.CreateAsync(_globalOptions, _eventAggregator).Result;
-                    }
-        
-                    PopulateServerVersionFromGithub(_webRequestFactory);
-                    SetVersionStatus();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error("{class} {method} {error}", "VersionCheck", "ServerVersion.get", ex.Message);
-                    _eventAggregator.PublishOnUIThread(new ErrorEventArgs(ex));
-                }
-                
-
-                return this._serverVersion;
-            }
-        }
-
-        private void SetVersionStatus()
-        {
-            if (_serverVersion == null)
-            { VersionStatus = "(Unable to get version information)"; }
-            else if (LocalVersion.CompareTo(_serverVersion) > 0)
-            { VersionStatus = string.Format("(Ahead of {1} Version - {0} )", _serverVersion.ToString(3), ServerVersionType); }
-            else if (LocalVersion.CompareTo(_serverVersion) == 0)
-            { VersionStatus = string.Format("(Latest {0} Version)", ServerVersionType); }
-            else
-            { VersionStatus = string.Format("(New {1} Version available - {0})", _serverVersion.ToString(3), ServerVersionType); }
-
-            NotifyOfPropertyChange(() => VersionStatus);
-        }
-
-        //private void PopulateServerVersionFromCodeplex()
+        //private void SetVersionStatus()
         //{
-        //    System.Net.WebClient http = new System.Net.WebClient();
-        //    //http.Proxy = System.Net.WebProxy.GetDefaultProxy(); //works but is deprecated
-        //    http.Proxy = System.Net.WebRequest.GetSystemWebProxy(); //inherits the Internet Explorer proxy settings. Should help this version check work behind a proxy server.
-        //    MemoryStream ms;
-        //    try
-        //    {
-        //        ms = new MemoryStream(http.DownloadData(new Uri(CURRENT_CODEPLEX_VERSION_URL)));
-        //    }
-        //    catch (System.Net.WebException wex)
-        //    {
-        //        if (wex.Status == System.Net.WebExceptionStatus.ProtocolError)
-        //        {
-        //            // assume proxy auth error and re-try with current user credentials
-        //            http.Proxy.Credentials = System.Net.CredentialCache.DefaultCredentials;
-        //            ms = new MemoryStream(http.DownloadData(new Uri(CURRENT_CODEPLEX_VERSION_URL)));
-        //        }
-        //        else
-        //        {
-        //            throw;
-        //        }
-        //    }
-        //    XmlReader reader = XmlReader.Create(ms);
-        //    XmlDocument doc = new XmlDocument();
-        //    doc.Load(reader);
-        //    this._serverVersion = Version.Parse(doc.DocumentElement.SelectSingleNode("Version").InnerText);
-        //    ms.Close();
-        //    reader.Close();
+        //    if (ServerVersion.IsNotSet() )
+        //    { VersionStatus = "(Unable to get version information)"; }
+        //    else if (LocalVersion.CompareTo(ServerVersion) > 0)
+        //    { VersionStatus = string.Format("(Ahead of {1} Version - {0} )", ServerVersion.ToString(3), ServerVersionType); }
+        //    else if (LocalVersion.CompareTo(ServerVersion) == 0)
+        //    { VersionStatus = string.Format("(Latest {0} Version)", ServerVersionType); }
+        //    else
+        //    { VersionStatus = string.Format("(New {1} Version available - {0})", ServerVersion.ToString(3), ServerVersionType); }
 
+        //    UpdateCompleteCallback();
+
+        //    NotifyOfPropertyChange(() => VersionStatus);
         //}
+
 
         // This code runs async in a background worker
         private void PopulateServerVersionFromGithub(WebRequestFactory wrf)
         {
-            
+            Log.Information(Common.Constants.LogMessageTemplate, nameof(VersionCheck), nameof(PopulateServerVersionFromGithub), "Start");
+
             using (System.Net.WebClient http = wrf.CreateWebClient())
             {
                 
@@ -215,9 +180,10 @@ namespace DaxStudio.UI.Model
 
                 try
                 {
-//#if DEBUG
-//                    json = File.ReadAllText(@"..\..\..\src\CurrentReleaseVersion.json");
-//#else
+                    //#if DEBUG
+                    //                    json = File.ReadAllText(@"..\..\..\src\CurrentReleaseVersion.json");
+                    //#else
+                    Log.Information(Common.Constants.LogMessageTemplate, nameof(VersionCheck), nameof(PopulateServerVersionFromGithub), "Starting download of CurrentVersion.json");
                     json = http.DownloadString(new Uri(WebRequestFactory.CurrentGithubVersionUrl));
 //#endif           
                 }
@@ -225,6 +191,7 @@ namespace DaxStudio.UI.Model
                 {
                     if (wex.Status == System.Net.WebExceptionStatus.ProtocolError &&  ((HttpWebResponse)wex.Response).StatusCode == HttpStatusCode.ProxyAuthenticationRequired )
                     {
+                        Log.Information(Common.Constants.LogMessageTemplate, nameof(VersionCheck), nameof(PopulateServerVersionFromGithub), "Re-trying download of CurrentVersion.json with proxy auth");
                         // assume proxy auth error and re-try with current user credentials
                         http.Proxy.Credentials = System.Net.CredentialCache.DefaultCredentials;
                         json = http.DownloadString(new Uri(WebRequestFactory.CurrentGithubVersionUrl));
@@ -236,33 +203,30 @@ namespace DaxStudio.UI.Model
                 }
 
                 JObject jobj = JObject.Parse(json);
-
-                _productionVersion = Version.Parse((string)jobj["Version"]);
-                _productionDownloadUrl = (string)jobj["DownloadUrl"];
-
-                _prereleaseVersion = Version.Parse((string)jobj["PreRelease"]["Version"]);
-                _prereleaseDownloadUrl = (string)jobj["PreRelease"]["DownloadUrl"];
-
-                if (_globalOptions.ShowPreReleaseNotifcations && _productionVersion.CompareTo(_prereleaseVersion) < 0)
+                try
                 {
-                    ServerVersionType = "Pre-Release";
-                    _serverVersion = _prereleaseVersion;
-                    _downloadUrl = _prereleaseDownloadUrl;
-                }
-                else
-                {
+                    _productionVersion = Version.Parse((string)jobj["Version"]);
+                    _productionDownloadUrl = new Uri((string)jobj["DownloadUrl"]);
+
                     ServerVersionType = "Production";
-                    _serverVersion = _productionVersion;
+                    _globalOptions.CurrentDownloadVersion = _productionVersion;
                     DownloadUrl = _productionDownloadUrl;
                 }
-                
-                
-                
+                catch (Exception ex)
+                {
+                    Log.Error(ex, Common.Constants.LogMessageTemplate, nameof(VersionCheck), nameof(PopulateServerVersionFromGithub), $"Error parsing CurrentVersion.json: {ex.Message}");
+                    _eventAggregator.PublishOnUIThread(new OutputMessage(MessageType.Warning, $"The following error occurred while checking if there is an updated release available: {ex.Message}"));
+                }
+                finally
+                {
+                    UpdateCompleteCallback?.Invoke(this, null);
+                }
+                Log.Information(Common.Constants.LogMessageTemplate, nameof(VersionCheck), nameof(PopulateServerVersionFromGithub), "Finish");
             }
         }
 
         public string ServerVersionType {
-            get { return _serverVersionType; }
+            get => _serverVersionType;
             set {
                 _serverVersionType = value;
                 NotifyOfPropertyChange(() => ServerVersionType);
@@ -273,32 +237,41 @@ namespace DaxStudio.UI.Model
         {
             get
             {
+                if (ServerVersion.IsNotSet()) return false;
                 return LocalVersion.CompareTo(ServerVersion) >= 0;
             }
         }
 
-        public string VersionStatus { get; set; }
+        //public string VersionStatus { get; set; }
 
         public void OpenDaxStudioReleasePageInBrowser()
         {
             // Open URL in Browser
-            System.Diagnostics.Process.Start(DownloadUrl);
+            System.Diagnostics.Process.Start(DownloadUrl.ToString());
         }
+
         public void Update()
         {
-            if (_serverVersion != null) return;
-            var ver = this.ServerVersion;
+            //if (!ServerVersion.IsNotSet()) return;
+            //var ver = this.ServerVersion;
+            //CheckVersion();
+            if (_isCheckRunning) return;
+            worker.RunWorkerAsync();
         }
 
 
 
-        public string DownloadUrl { 
+        public Uri DownloadUrl { 
             get { return _downloadUrl; } 
             set { if (value == _downloadUrl) return; 
                 _downloadUrl = value; 
                 NotifyOfPropertyChange(() => DownloadUrl); 
             } 
         }
+
+
+        public event EventHandler UpdateCompleteCallback;
+        public event EventHandler UpdateStartingCallback;
     }
 }
 

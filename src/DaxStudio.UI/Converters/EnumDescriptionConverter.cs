@@ -8,7 +8,7 @@ using System.Windows.Data;
 namespace DaxStudio.UI.Converters
 {
 
-    public class EnumDescriptionConverter : IValueConverter
+    public sealed class EnumDescriptionConverter : IValueConverter
         {
             private string GetEnumDescription(Enum enumObj)
             {
@@ -37,6 +37,8 @@ namespace DaxStudio.UI.Converters
 
             object IValueConverter.Convert(object value, Type targetType, object parameter, CultureInfo culture)
             {
+                if (string.IsNullOrEmpty(value?.ToString())) return Binding.DoNothing;
+
                 Enum myEnum = (Enum)value;
                 string description = GetEnumDescription(myEnum);
                 return description;

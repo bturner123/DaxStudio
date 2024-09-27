@@ -1,9 +1,10 @@
-﻿using ICSharpCode.AvalonEdit;
+﻿using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
+using ICSharpCode.AvalonEdit;
 
-namespace DAXEditor
+namespace DAXEditorControl
 {
-    using System.Windows;
-    using System.Windows.Media;
 
     /// <summary>
     /// This part of the AvalonEdit extension contains additional
@@ -21,6 +22,16 @@ namespace DAXEditor
                                          new UIPropertyMetadata(new SolidColorBrush(Color.FromArgb(33, 33, 33, 33)),
                                          DAXEditor.OnCurrentLineBackgroundChanged));
         #endregion EditorCurrentLineBackground
+
+        #region Indenting
+
+        private static readonly DependencyProperty ConvertTabsToSpacesProperty =
+            DependencyProperty.Register("ConvertTabsToSpaces", typeof(bool), typeof(DAXEditor), new UIPropertyMetadata(false, OnConvertTabsToSpacesChanged));
+
+        private static readonly DependencyProperty IndentationSizeProperty =
+            DependencyProperty.Register("IndentationSize", typeof(int), typeof(DAXEditor), new UIPropertyMetadata(4, OnIndentationSizeChanged));
+
+        #endregion
 
         #region CaretPosition
         private static readonly DependencyProperty ColumnProperty =
@@ -95,6 +106,21 @@ namespace DAXEditor
         }
         #endregion EditorCurrentLineBackground
 
+        #region Indenting
+        public bool ConvertTabsToSpaces
+        {
+            get => (bool)GetValue(ConvertTabsToSpacesProperty);
+            set => SetValue(ConvertTabsToSpacesProperty, value);
+        }
+
+        public int IndentationSize
+        {
+            get => (int)GetValue(IndentationSizeProperty);
+            set => SetValue(IndentationSizeProperty, value);
+        }
+
+        #endregion
+
         #region CaretPosition
         public int Column
         {
@@ -122,6 +148,14 @@ namespace DAXEditor
             }
         }
         #endregion CaretPosition
+
+        public static readonly DependencyProperty ContextMenuWordProperty =
+                DependencyProperty.Register("ContextMenuWord", typeof(string), typeof(DAXEditor), new UIPropertyMetadata(string.Empty));
+        public string ContextMenuWord
+        {
+            get => (string)GetValue(ContextMenuWordProperty);
+            set => SetValue(ContextMenuWordProperty, value);
+        }
 
         #region EditorStateProperties
         /// <summary>
@@ -234,6 +268,8 @@ namespace DAXEditor
         #endregion EditorStateProperties
         #endregion properties
 
+        public bool IsMouseOverCompletionWindow { get; set; }
+
         #region methods
         /// <summary>
         /// The dependency property for has changed.
@@ -244,19 +280,40 @@ namespace DAXEditor
         /// <param name="e"></param>
         private static void OnCurrentLineBackgroundChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            DAXEditor view = d as DAXEditor;
-
-            if (view != null && e != null)
+            if (d is DAXEditor view && e != null)
             {
-                SolidColorBrush newValue = e.NewValue as SolidColorBrush;
-
-                if (newValue != null)
+                if (e.NewValue is SolidColorBrush newValue)
                 {
                     view.EditorCurrentLineBackground = newValue;
                     //view.AdjustCurrentLineBackground(newValue);
                 }
             }
         }
+
+
+        private static void OnConvertTabsToSpacesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (!(d is DAXEditor view)) return;
+            if (e == null) return;
+
+            var convertTabsToSpaces = e.NewValue as bool?;
+
+            view.Options.ConvertTabsToSpaces = convertTabsToSpaces ?? false;
+            
+        }
+
+        private static void OnIndentationSizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (!(d is DAXEditor view)) return;
+            if (e == null) return;
+
+            var indentSize = e.NewValue as int?;
+            if (indentSize < 1) indentSize = 1;
+
+            view.Options.IndentationSize = indentSize ?? 4;
+        }
+
+        
         #endregion methods
 
 
@@ -271,6 +328,25 @@ namespace DAXEditor
             base.OnTextChanged(e);
             SetValue(EditorSelectedTextProperty, SelectedText);
         }
-        
+
+        protected override void OnLostFocus(RoutedEventArgs e)
+        {
+            base.OnLostFocus(e);
+            DisposeCompletionWindow();
+            System.Diagnostics.Debug.WriteLine("OnLostFocus");
+        }
+
+        protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e)
+        {
+            base.OnLostKeyboardFocus(e);
+            DisposeCompletionWindow();
+            System.Diagnostics.Debug.WriteLine("OnLostKeyboardFocus");
+        }
+
+        protected override void OnLostMouseCapture(MouseEventArgs e)
+        {
+            base.OnLostMouseCapture(e);
+            System.Diagnostics.Debug.WriteLine("OnLostMouseCapture");
+        }
     }
 }
